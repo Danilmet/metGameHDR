@@ -1,8 +1,10 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
 using MetGameHDR.Scan;
 using MetGameHDR.Ui;
+using MetGameHDR.Update;
 using MetGameHDR.Watch;
 
 namespace MetGameHDR;
@@ -54,6 +56,7 @@ public partial class App : Application
 
     void StartTray(bool showWindow)
     {
+        Updater.Cleanup(Environment.ProcessPath!, AppPaths.UpdateDir);
         SessionEnding += (_, _) => FinishHdr();
 
         var settings = Settings.Load(AppPaths.SettingsFile);
@@ -70,13 +73,13 @@ public partial class App : Application
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         string? lastError = null;
         Tray? tray = null;
-        tray = new Tray(window.ShowFromTray, () =>
+        void Stop()
         {
             timer.Stop();
             FinishHdr();
             tray!.Dispose();
-            Shutdown();
-        });
+        }
+        tray = new Tray(window.ShowFromTray, () => { Stop(); Shutdown(); });
         timer.Tick += (_, _) =>
         {
             try
@@ -93,6 +96,37 @@ public partial class App : Application
             }
         };
         timer.Start();
+
+        Version? notified = null;
+        async Task InstallAsync(Release r)
+        {
+            var exe = Environment.ProcessPath!;
+            var newExe = await Updater.DownloadAsync(r, AppPaths.UpdateDir);
+            Updater.Swap(exe, newExe);
+            var args = window.IsVisible ? "" : "--tray";
+            Stop();
+            instance!.Dispose();
+            Process.Start(exe, args);
+            Shutdown();
+        }
+        async Task CheckUpdatesAsync()
+        {
+            try
+            {
+                var r = await Updater.CheckAsync();
+                if (r == null) return;
+                if (notified != r.Version)
+                {
+                    notified = r.Version;
+                    tray.ShowInfo($"Доступна v{r.Version.ToString(3)}");
+                }
+                window.ShowUpdate(r, () => InstallAsync(r));
+            }
+            catch (Exception ex) { Log.Write($"Update check: {ex.Message}"); }
+        }
+        var updateTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+        updateTimer.Tick += (_, _) => { updateTimer.Interval = TimeSpan.FromHours(24); _ = CheckUpdatesAsync(); };
+        updateTimer.Start();
         if (showWindow) window.Show();
         DispatcherUnhandledException += (_, a) =>
         {

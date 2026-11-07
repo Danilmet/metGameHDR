@@ -39,6 +39,9 @@ public sealed class Tray : IDisposable
     public void ShowError(string message) =>
         notifyIcon.ShowBalloonTip(3000, "metGameHDR", message, Forms.ToolTipIcon.Error);
 
+    public void ShowInfo(string message) =>
+        notifyIcon.ShowBalloonTip(3000, "metGameHDR", message, Forms.ToolTipIcon.Info);
+
     static Drawing.Icon WithGreenDot(Drawing.Icon icon)
     {
         using var bitmap = new Drawing.Bitmap(32, 32);

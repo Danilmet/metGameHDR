@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using MetGameHDR.Scan;
 using MetGameHDR.Steam;
+using MetGameHDR.Update;
 using Forms = System.Windows.Forms;
 
 namespace MetGameHDR.Ui;
@@ -23,6 +24,7 @@ public partial class MainWindow : Window
     bool scanning;
     bool addingToSteam;
     Action? pendingCovers;
+    Func<Task>? installUpdate;
 
     public MainWindow(Settings settings, Library lib, Action onLibraryChanged)
     {
@@ -312,6 +314,27 @@ public partial class MainWindow : Window
     {
         settings.TurnOffHdrOnExit = TurnOffBox.IsChecked == true;
         SaveSettings();
+    }
+
+    public void ShowUpdate(Release release, Func<Task> install)
+    {
+        installUpdate = install;
+        UpdateText.Text = $"Доступна v{release.Version.ToString(3)}";
+        UpdatePanel.Visibility = Visibility.Visible;
+    }
+
+    async void Update_Click(object sender, RoutedEventArgs e)
+    {
+        UpdateButton.IsEnabled = false;
+        UpdateButton.Content = "Загрузка…";
+        try { await installUpdate!(); }
+        catch (Exception ex)
+        {
+            Log.Write($"Update: {ex}");
+            UpdateText.Text = $"Ошибка: {ex.Message}";
+            UpdateButton.IsEnabled = true;
+            UpdateButton.Content = "Обновить";
+        }
     }
 
     void SaveSettings()

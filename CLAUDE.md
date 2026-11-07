@@ -3,7 +3,7 @@
 Трей-приложение (.NET 8 / WPF). Раз в 2 с смотрит процессы и включает системный HDR, пока запущена игра из библиотеки (Steam/Epic/GOG/Ubisoft/EA/Xbox/папки); выключает через 3 с после выхода, только если включило само. Также добавляет игры из папок и выбранные приложения в Steam как non-Steam ярлыки с обложками SteamGridDB.
 
 ## Структура
-- `src/metGameHDR` (root namespace `MetGameHDR`): `Scan/` источники и `Library`, `Watch/` `ProcessWatcher`, `HdrController`, `DisplayConfigHdr`, `Steam/` текстовый и бинарный VDF, `ShortcutsFile`, `SteamGridDb`, `Artwork`, `SteamAdder`, `Ui/` окно, трей, автозапуск, `Covers` (поиск обложек + кэш загрузок SteamGridDB), `Theme` (системная тема), `Backdrop` (DWM-акрил), `Themes/Dark.xaml`, `Light.xaml`, `Controls.xaml` (стили контролов, все цвета через DynamicResource).
+- `src/metGameHDR` (root namespace `MetGameHDR`): `Scan/` источники и `Library`, `Watch/` `ProcessWatcher`, `HdrController`, `DisplayConfigHdr`, `Update/` `Updater` (самообновление с GitHub Releases), `Steam/` текстовый и бинарный VDF, `ShortcutsFile`, `SteamGridDb`, `Artwork`, `SteamAdder`, `Ui/` окно, трей, автозапуск, `Covers` (поиск обложек + кэш загрузок SteamGridDB), `Theme` (системная тема), `Backdrop` (DWM-акрил), `Themes/Dark.xaml`, `Light.xaml`, `Controls.xaml` (стили контролов, все цвета через DynamicResource).
 - `tests/metGameHDR.Tests` (xUnit), `tools/make-icon.ps1` (генерирует `src/metGameHDR/assets/icon.ico`; запускать с `-ExecutionPolicy Bypass`), спека и план в `docs/superpowers/`.
 - Сторонних NuGet-пакетов кроме xUnit нет; комментарии в коде только там, где поведение неочевидно.
 
@@ -15,6 +15,7 @@
 
 ## Данные
 `%AppData%\metGameHDR\`: `settings.json`, `library.json`, `log.txt` (после 1 МБ ротация в `log.old`). Битый JSON переименовывается в `.bad`, применяются значения по умолчанию.
+- `update\` — zip и распакованный релиз во время обновления; удаляется при следующем старте.
 - `covers\` — обложки SteamGridDB для игр не из Steam; имя файла — безопасное имя папки игры плюс 8 hex-символов хэша пути; временные файлы пишутся как `~имя`, поэтому недокачанный файл никогда не подхватывается.
 
 ## Неочевидное
@@ -29,3 +30,4 @@
 - Тема читается из `HKCU\...\Themes\Personalize\AppsUseLightTheme` и меняется на лету через `SystemEvents.UserPreferenceChanged`; чтобы стили перекрашивались, они обязаны использовать `DynamicResource`.
 - Стекло: `DwmSetWindowAttribute(DWMWA_SYSTEMBACKDROP_TYPE=38, DWMSBT_TRANSIENTWINDOW=3)` + `DWMWA_USE_IMMERSIVE_DARK_MODE=20`; при ошибке (Windows 10) окно откатывается на сплошной фон темы.
 - Неявный стиль `Window` не применяется к `MainWindow` (наследник), поэтому окно явно ставит `Style="{StaticResource {x:Type Window}}"`; неявный стиль `TextBlock` принудительно задаёт цвет текста внутри шаблонов, поэтому цвета бейджей/карточек задаются через Style. Бейджи карточек показывают только проблемные состояния (`nonHDR`, зачёркнутый `Steam`).
+- Обновление: при старте проверяется `releases/latest` на GitHub (через 10 с, затем раз в 24 ч); по кнопке zip качается в `%AppData%\metGameHDR\update\`, текущий exe переименовывается в `.old` (Windows это разрешает для запущенного файла), новый ставится на его место, мьютекс освобождается до `Process.Start`, иначе новый экземпляр выйдет как второй; `.old` и `update\` удаляются при следующем старте. Self-contained определяется по пустому `typeof(object).Assembly.Location`.
