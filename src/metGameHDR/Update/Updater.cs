@@ -1,5 +1,6 @@
 using System.IO;
 using System.IO.Compression;
+using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
 
@@ -10,6 +11,15 @@ public sealed record Release(Version Version, string AssetUrl, string PageUrl);
 public static class Updater
 {
     public const string Repo = "Danilmet/metGameHDR";
+
+    static readonly HttpClient Http = CreateHttp();
+
+    static HttpClient CreateHttp()
+    {
+        var http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("metGameHDR");
+        return http;
+    }
 
     public static Version Current => Assembly.GetEntryAssembly()?.GetName().Version ?? new Version(0, 0, 0);
 
@@ -46,6 +56,29 @@ public static class Updater
         {
             return null;
         }
+    }
+
+    public static async Task<Release?> CheckAsync()
+    {
+        using var response = await Http.GetAsync($"https://api.github.com/repos/{Repo}/releases/latest");
+        response.EnsureSuccessStatusCode();
+        var release = Parse(await response.Content.ReadAsStringAsync(), Current, IsSelfContained);
+        Log.Write($"Update check: current {Current}, selfContained {IsSelfContained}, latest {(release is null ? "none" : "v" + release.Version.ToString(3))}");
+        return release;
+    }
+
+    public static async Task<string> DownloadAsync(Release release, string updateDir)
+    {
+        Directory.CreateDirectory(updateDir);
+        var zipPath = Path.Combine(updateDir, "update.zip");
+        using (var response = await Http.GetAsync(release.AssetUrl, HttpCompletionOption.ResponseHeadersRead))
+        {
+            response.EnsureSuccessStatusCode();
+            await using var src = await response.Content.ReadAsStreamAsync();
+            await using var dst = new FileStream(zipPath, FileMode.Create);
+            await src.CopyToAsync(dst);
+        }
+        return Extract(zipPath, Path.Combine(updateDir, "unpacked"));
     }
 
     public static string Extract(string zipPath, string dir)
