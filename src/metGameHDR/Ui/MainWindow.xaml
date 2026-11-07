@@ -1,61 +1,174 @@
 <Window x:Class="MetGameHDR.Ui.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="metGameHDR" Height="550" Width="1000">
+        Title="metGameHDR" Width="1100" Height="680" MinWidth="820" MinHeight="520"
+        Style="{StaticResource {x:Type Window}}" Background="Transparent">
+    <WindowChrome.WindowChrome>
+        <WindowChrome GlassFrameThickness="-1" UseAeroCaptionButtons="True" CaptionHeight="32" ResizeBorderThickness="6" />
+    </WindowChrome.WindowChrome>
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
     </Window.Resources>
-    <TabControl Margin="6">
-        <TabItem Header="Игры">
-            <DockPanel Margin="6">
-                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
-                    <Button x:Name="RefreshButton" Content="Обновить" Padding="10,2" Click="Refresh_Click"/>
-                    <Button x:Name="AddAppButton" Content="Добавить приложение" Padding="10,2" Margin="6,0,0,0" Click="AddApp_Click"/>
-                    <Button x:Name="AddToSteamButton" Content="Добавить выбранное в Steam" Padding="10,2" Margin="6,0,0,0" Click="AddToSteam_Click"/>
-                    <TextBlock x:Name="StatusText" Margin="12,0,0,0" VerticalAlignment="Center"/>
+    <Grid x:Name="RootGrid" Background="{DynamicResource WindowBackgroundSolid}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="32"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="metGameHDR" Margin="14,0,0,0" VerticalAlignment="Center" FontSize="12"
+                   Foreground="{DynamicResource TextSecondary}"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <RadioButton x:Name="GamesTab" Content="Игры" Style="{StaticResource SegmentButton}" IsChecked="True"
+                         WindowChrome.IsHitTestVisibleInChrome="True"/>
+            <RadioButton x:Name="SettingsTab" Content="Настройки" Style="{StaticResource SegmentButton}" Margin="4,0,0,0"
+                         WindowChrome.IsHitTestVisibleInChrome="True"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1" Margin="14,8,14,14"
+              Visibility="{Binding IsChecked, ElementName=GamesTab, Converter={StaticResource BoolToVisibility}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <ListBox x:Name="GamesGrid" SelectionMode="Extended" SelectionChanged="GamesGrid_SelectionChanged"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel/>
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border x:Name="Card" Width="150" Height="225" Margin="4" CornerRadius="10"
+                                BorderThickness="2" BorderBrush="Transparent">
+                            <Grid>
+                                <!-- Border.CornerRadius does not clip children; the card size is fixed, so a fixed clip works. -->
+                                <Grid.Clip>
+                                    <RectangleGeometry Rect="0,0,146,221" RadiusX="8" RadiusY="8"/>
+                                </Grid.Clip>
+                                <Border x:Name="Placeholder" Background="{DynamicResource Surface}" Visibility="Collapsed">
+                                    <Image Source="{Binding Icon}" Width="48" Height="48" Margin="0,0,0,30"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <Image Source="{Binding Cover}" Stretch="UniformToFill"/>
+                                <Border VerticalAlignment="Bottom" Background="{DynamicResource Overlay}" Padding="10,28,10,10">
+                                    <DockPanel>
+                                        <TextBlock x:Name="SteamMark" DockPanel.Dock="Left" Text="✓" Margin="0,0,4,0"/>
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold"/>
+                                    </DockPanel>
+                                </Border>
+                                <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8" Padding="7,2"
+                                        CornerRadius="999" Background="#99000000">
+                                    <TextBlock Text="{Binding Source}" Foreground="White" FontSize="10"/>
+                                </Border>
+                                <CheckBox Style="{StaticResource HdrToggle}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
+                                          IsChecked="{Binding HdrEnabled, UpdateSourceTrigger=PropertyChanged}"
+                                          Visibility="{Binding HdrApplies, Converter={StaticResource BoolToVisibility}}"/>
+                            </Grid>
+                        </Border>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding Cover}" Value="{x:Null}">
+                                <Setter TargetName="Placeholder" Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding SteamText}" Value="">
+                                <Setter TargetName="SteamMark" Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding SteamText}" Value="нет">
+                                <Setter TargetName="SteamMark" Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <Border x:Name="DetailsPanel" Grid.Column="1" Style="{StaticResource CardSurface}" Width="260" Margin="12,0,0,0"
+                    VerticalAlignment="Top" Visibility="Collapsed"
+                    DataContext="{Binding SelectedItem, ElementName=GamesGrid}">
+                <StackPanel>
+                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    <TextBlock Margin="0,2,0,0" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap">
+                        <Run Text="{Binding Source, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding SteamText, Mode=OneWay}"/>
+                    </TextBlock>
+                    <TextBlock Text="Exe" Margin="0,14,0,4" Foreground="{DynamicResource TextSecondary}"/>
+                    <ComboBox IsEditable="True" ItemsSource="{Binding ExeCandidates}" IsEnabled="{Binding CanAddToSteam}"
+                              Text="{Binding MainExe, UpdateSourceTrigger=PropertyChanged}"/>
+                    <TextBlock Text="Имя для поиска" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
+                    <TextBox Text="{Binding SearchName, UpdateSourceTrigger=PropertyChanged}"/>
                 </StackPanel>
-                <DataGrid x:Name="GamesGrid" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
-                          SelectionMode="Extended" HeadersVisibility="Column">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Имя" Binding="{Binding Name}" IsReadOnly="True" Width="2*"/>
-                        <DataGridTextColumn Header="Источник" Binding="{Binding Source}" IsReadOnly="True"/>
-                        <DataGridTemplateColumn Header="HDR">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <CheckBox IsChecked="{Binding HdrEnabled, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"
-                                              Visibility="{Binding HdrApplies, Converter={StaticResource BoolToVisibility}}"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="В Steam" Binding="{Binding SteamText}" IsReadOnly="True"/>
-                        <DataGridTemplateColumn Header="Exe" Width="3*">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <ComboBox IsEditable="True" ItemsSource="{Binding ExeCandidates}" IsEnabled="{Binding CanAddToSteam}"
-                                              Text="{Binding MainExe, UpdateSourceTrigger=PropertyChanged}"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Имя для поиска" Binding="{Binding SearchName}" Width="2*"/>
-                    </DataGrid.Columns>
-                </DataGrid>
-            </DockPanel>
-        </TabItem>
-        <TabItem Header="Настройки">
-            <StackPanel Margin="6">
-                <TextBlock Text="Папки с играми"/>
-                <ListBox x:Name="RootsList" Height="120" Margin="0,4,0,0"/>
-                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                    <Button x:Name="AddRootButton" Content="Добавить" Padding="10,2" Click="AddRoot_Click"/>
-                    <Button x:Name="RemoveRootButton" Content="Удалить" Padding="10,2" Margin="6,0,0,0" Click="RemoveRoot_Click"/>
-                </StackPanel>
-                <TextBlock Text="Ключ SteamGridDB" Margin="0,12,0,0"/>
-                <TextBox x:Name="KeyBox" Margin="0,4,0,0"/>
-                <TextBlock Text="Аккаунт Steam" Margin="0,12,0,0"/>
-                <ComboBox x:Name="SteamUserBox" Width="200" HorizontalAlignment="Left" Margin="0,4,0,0"/>
-                <CheckBox x:Name="AutostartBox" Content="Запускать вместе с Windows" Margin="0,12,0,0" Click="Autostart_Click"/>
-                <CheckBox x:Name="TurnOffBox" Content="Выключать HDR при выходе из игры" Margin="0,6,0,0" Click="TurnOff_Click"/>
+            </Border>
+
+            <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,12,0,0">
+                <Button x:Name="RefreshButton" Content="Обновить" Click="Refresh_Click"/>
+                <Button x:Name="AddAppButton" Content="Добавить приложение" Margin="8,0,0,0" Click="AddApp_Click"/>
+                <Button x:Name="AddToSteamButton" Content="Добавить выбранное в Steam" Margin="8,0,0,0"
+                        Style="{StaticResource AccentButton}" Click="AddToSteam_Click"/>
+                <TextBlock x:Name="StatusText" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
             </StackPanel>
-        </TabItem>
-    </TabControl>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                      Visibility="{Binding IsChecked, ElementName=SettingsTab, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel Margin="14,8,14,14" Width="640" HorizontalAlignment="Left">
+                <Border Style="{StaticResource CardSurface}">
+                    <StackPanel>
+                        <TextBlock Text="Папки с играми" FontWeight="SemiBold"/>
+                        <ListBox x:Name="RootsList" Height="120" Margin="0,8,0,0">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="8,4"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceHover}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                        </ListBox>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button x:Name="AddRootButton" Content="Добавить" Click="AddRoot_Click"/>
+                            <Button x:Name="RemoveRootButton" Content="Удалить" Margin="8,0,0,0" Click="RemoveRoot_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardSurface}" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Text="SteamGridDB" FontWeight="SemiBold"/>
+                        <TextBlock Text="Ключ API" Margin="0,8,0,4" Foreground="{DynamicResource TextSecondary}"/>
+                        <TextBox x:Name="KeyBox"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardSurface}" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Steam" FontWeight="SemiBold"/>
+                        <TextBlock Text="Аккаунт" Margin="0,8,0,4" Foreground="{DynamicResource TextSecondary}"/>
+                        <ComboBox x:Name="SteamUserBox" Width="200" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardSurface}" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Поведение" FontWeight="SemiBold"/>
+                        <CheckBox x:Name="AutostartBox" Content="Запускать вместе с Windows" Margin="0,10,0,0" Click="Autostart_Click"/>
+                        <CheckBox x:Name="TurnOffBox" Content="Выключать HDR при выходе из игры" Margin="0,8,0,0" Click="TurnOff_Click"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
 </Window>
