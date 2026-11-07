@@ -61,12 +61,22 @@ public class ClaudeClientTests
         var root = doc.RootElement;
         Assert.Equal("claude-opus-5-5", root.GetProperty("model").GetString());
         Assert.Equal("web_search_20260209", root.GetProperty("tools")[0].GetProperty("type").GetString());
-        Assert.False(root.TryGetProperty("output_config", out _));
+        Assert.Equal("medium", root.GetProperty("output_config").GetProperty("effort").GetString());
         var system = root.GetProperty("system").GetString()!;
         Assert.Contains("Отвечай только одним JSON-объектом по этой схеме", system);
         Assert.Contains("строго по-русски", system);
         Assert.Contains("\"additionalProperties\"", system);
         Assert.Equal("default", root.GetProperty("fallbacks").GetString());
+    }
+
+    [Fact]
+    public async Task AskAsync_CustomModel_IsSentInBody()
+    {
+        var fake = new Fake(HttpStatusCode.OK, Response());
+        await new ClaudeClient(new HttpClient(fake), "key", null, " claude-sonnet-5-5 ").AskAsync(Request(), CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(fake.Body!);
+        Assert.Equal("claude-sonnet-5-5", doc.RootElement.GetProperty("model").GetString());
     }
 
     [Fact]

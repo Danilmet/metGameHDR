@@ -250,24 +250,24 @@
                                 <Grid Margin="8,0,8,4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="Name"/>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Current"/>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Recommended"/>
+                                        <ColumnDefinition Width="Auto" MinWidth="120" SharedSizeGroup="Current"/>
+                                        <ColumnDefinition Width="Auto" MinWidth="180" SharedSizeGroup="Recommended"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Настройка" Foreground="{DynamicResource TextSecondary}"/>
-                                    <TextBlock Grid.Column="1" Text="Сейчас" Foreground="{DynamicResource TextSecondary}"/>
-                                    <TextBlock Grid.Column="2" Text="Рекомендуется" Foreground="{DynamicResource TextSecondary}"/>
+                                    <TextBlock Text="Настройка" Margin="0,0,24,0" Foreground="{DynamicResource TextSecondary}"/>
+                                    <TextBlock Grid.Column="1" Text="Сейчас" Margin="0,0,24,0" Foreground="{DynamicResource TextSecondary}"/>
+                                    <TextBlock Grid.Column="2" Text="Рекомендуется" Margin="0,0,24,0" Foreground="{DynamicResource TextSecondary}"/>
                                 </Grid>
                                 <ItemsControl ItemsSource="{Binding AdviceRows, Mode=OneWay}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border x:Name="RowBorder" Padding="8,6" CornerRadius="6" Margin="0,0,0,2">
+                                            <Border x:Name="RowBorder" Padding="8,6" CornerRadius="6" Margin="0,0,0,8">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto" SharedSizeGroup="Name"/>
-                                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Current"/>
-                                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Recommended"/>
+                                                        <ColumnDefinition Width="Auto" MinWidth="120" SharedSizeGroup="Current"/>
+                                                        <ColumnDefinition Width="Auto" MinWidth="180" SharedSizeGroup="Recommended"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <StackPanel MaxWidth="420" Margin="0,0,16,0">
+                                                    <StackPanel MaxWidth="420" Margin="0,0,24,0">
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="{Binding Name, Mode=OneWay}" TextWrapping="Wrap" FontWeight="SemiBold"/>
                                                             <Border x:Name="ConfigTag" Visibility="Collapsed" Margin="8,0,0,0" Padding="4,0" CornerRadius="4"
@@ -279,9 +279,9 @@
                                                                    Foreground="{DynamicResource TextSecondary}"/>
                                                     </StackPanel>
                                                     <TextBlock Grid.Column="1" Text="{Binding Current, Mode=OneWay}" TextWrapping="Wrap" MaxWidth="200"
-                                                               Margin="0,0,16,0" Foreground="{DynamicResource TextSecondary}"/>
+                                                               Margin="0,0,24,0" Foreground="{DynamicResource TextSecondary}"/>
                                                     <TextBlock Grid.Column="2" Text="{Binding Recommended, Mode=OneWay}" TextWrapping="Wrap" MaxWidth="260"
-                                                               FontWeight="SemiBold"/>
+                                                               Margin="0,0,24,0" FontWeight="SemiBold"/>
                                                 </Grid>
                                             </Border>
                                             <DataTemplate.Triggers>
@@ -369,6 +369,9 @@
                         <TextBlock Text="Адрес сервера" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
                         <TextBox x:Name="ClaudeUrlBox"/>
                         <TextBlock Text="Пусто — api.anthropic.com; для своего прокси укажи его адрес" Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource TextSecondary}"/>
+                        <TextBlock Text="Модель" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
+                        <TextBox x:Name="ClaudeModelBox"/>
+                        <TextBlock Text="Пусто — claude-opus-5-5; дешевле — claude-sonnet-5-5" Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource TextSecondary}"/>
                         <TextBlock Text="FPS по умолчанию (пусто — частота монитора)" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
                         <TextBox x:Name="DefaultFpsBox" Width="60" HorizontalAlignment="Left"/>
                         <TextBlock Text="Приоритет по умолчанию" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>

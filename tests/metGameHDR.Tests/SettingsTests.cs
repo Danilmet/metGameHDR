@@ -54,11 +54,12 @@ public class SettingsTests
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
         try
         {
-            new Settings { ClaudeApiKey = "sk", ClaudeBaseUrl = "https://claude.nl.danmet.ru:8443/", DefaultFps = 90, DefaultPriority = Advice.Priority.Quality }.Save(path);
+            new Settings { ClaudeApiKey = "sk", ClaudeBaseUrl = "https://claude.nl.danmet.ru:8443/", ClaudeModel = "claude-sonnet-5-5", DefaultFps = 90, DefaultPriority = Advice.Priority.Quality }.Save(path);
             Assert.Contains("\"DefaultPriority\": \"Quality\"", File.ReadAllText(path));
             var back = Settings.Load(path);
             Assert.Equal("sk", back.ClaudeApiKey);
             Assert.Equal("https://claude.nl.danmet.ru:8443/", back.ClaudeBaseUrl);
+            Assert.Equal("claude-sonnet-5-5", back.ClaudeModel);
             Assert.Equal(90, back.DefaultFps);
             Assert.Equal(Advice.Priority.Quality, back.DefaultPriority);
         }

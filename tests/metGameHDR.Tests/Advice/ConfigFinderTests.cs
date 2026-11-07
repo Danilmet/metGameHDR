@@ -57,8 +57,8 @@ public class ConfigFinderTests
         WithTemp(dir =>
         {
             var install = Path.Combine(dir, "game");
-            for (var i = 1; i <= 5; i++) Write(Path.Combine(install, $"f{i}.ini"), 40 * 1024);
-            Write(Path.Combine(install, "big.ini"), 70 * 1024);
+            for (var i = 1; i <= 5; i++) Write(Path.Combine(install, $"f{i}.ini"), 12 * 1024);
+            Write(Path.Combine(install, "big.ini"), 20 * 1024);
 
             var found = ConfigFinder.Find(MakeGame("Zed", install), Roots(dir));
 
@@ -126,5 +126,76 @@ public class ConfigFinderTests
     public void Find_NoMatches_ReturnsEmpty()
     {
         WithTemp(dir => Assert.Empty(ConfigFinder.Find(MakeGame("Zed", Path.Combine(dir, "none")), Roots(dir))));
+    }
+
+    [Fact]
+    public void Find_UnrealProjectFolderInInstallDir_FindsGameUserSettings()
+    {
+        WithTemp(dir =>
+        {
+            var roots = Roots(dir);
+            var install = Path.Combine(dir, "Games", "PBZ");
+            Directory.CreateDirectory(Path.Combine(install, "ProjectPBZ", "Binaries"));
+            Directory.CreateDirectory(Path.Combine(install, "ProjectPBZ", "Content"));
+            var ini = Path.Combine(roots.LocalAppData, "ProjectPBZ", "Saved", "Config", "Windows", "GameUserSettings.ini");
+            Write(ini, 100);
+
+            var c = Assert.Single(ConfigFinder.Find(MakeGame("Phantom Blade Zero", install), roots));
+
+            Assert.Equal(ini, c.Path);
+        });
+    }
+
+    [Fact]
+    public void Find_PublisherSubfolderMatchingExeName_FindsIni()
+    {
+        WithTemp(dir =>
+        {
+            var roots = Roots(dir);
+            var install = Path.Combine(dir, "Games", "CONTROL.Resonant-InsaneRamZes");
+            var ini = Path.Combine(roots.LocalAppData, "Remedy", "CONTROLResonant", "renderer.ini");
+            Write(ini, 100);
+
+            var c = Assert.Single(ConfigFinder.Find(MakeGame("CONTROL Resonant", install, Path.Combine(install, "CONTROLResonant.exe")), roots));
+
+            Assert.Equal(ini, c.Path);
+        });
+    }
+
+    [Fact]
+    public void NameMatchesLoose_ContainsEitherWay()
+    {
+        var game = MakeGame("Whatever", @"C:\Games\CONTROL.Resonant-InsaneRamZes");
+        Assert.True(ConfigFinder.NameMatchesLoose("CONTROLResonant", game));
+        Assert.False(ConfigFinder.NameMatchesLoose("Foo", MakeGame("Foo")));
+    }
+
+    [Fact]
+    public void Find_NoiseFolderInLocalAppData_IsSkipped()
+    {
+        WithTemp(dir =>
+        {
+            var roots = Roots(dir);
+            Write(Path.Combine(roots.LocalAppData, "Microsoft", "Game", "x.ini"), 10);
+
+            Assert.Empty(ConfigFinder.Find(MakeGame("Microsoft Game"), roots));
+        });
+    }
+
+    [Fact]
+    public void Find_FileOverCap_IsTruncated()
+    {
+        WithTemp(dir =>
+        {
+            var install = Path.Combine(dir, "game");
+            Write(Path.Combine(install, "a.ini"), 100);
+            var ini = Path.Combine(Roots(dir).LocalAppData, "Zed", "Saved", "Config", "Windows", "GameUserSettings.ini");
+            Write(ini, 20 * 1024);
+
+            var c = ConfigFinder.Find(MakeGame("Zed", install), Roots(dir))[0];
+
+            Assert.True(c.Truncated);
+            Assert.Equal(ConfigFinder.MaxRootFileBytes, c.Text.Length);
+        });
     }
 }

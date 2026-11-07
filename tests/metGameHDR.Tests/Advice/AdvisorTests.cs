@@ -39,7 +39,7 @@ public class AdvisorTests
 
         public FinderRoots Roots => new(Path.Combine(Dir, "empty"), Path.Combine(Dir, "empty"), Path.Combine(Dir, "empty"));
 
-        public Advisor Advisor(string json = "{}") => new(() => "key", () => null, Lib, LibPath,
+        public Advisor Advisor(string json = "{}") => new(() => "key", () => null, () => null, Lib, LibPath,
             () => new HardwareInfo("GPU", 8, "CPU", 16, 1920, 1080, 60, "Win"),
             Roots, _ => Running, new HttpClient(new Fake(json)));
 
@@ -167,7 +167,7 @@ public class AdvisorTests
         o.MainExe = "real.exe";
         var handler = new CapturingHandler();
 
-        var advisor = new Advisor(() => "key", () => null, e.Lib, e.LibPath, () => new HardwareInfo("GPU", 8, "CPU", 16, 1920, 1080, 60, "Win"),
+        var advisor = new Advisor(() => "key", () => null, () => null, e.Lib, e.LibPath, () => new HardwareInfo("GPU", 8, "CPU", 16, 1920, 1080, 60, "Win"),
             e.Roots, _ => false, new HttpClient(handler));
         await Assert.ThrowsAnyAsync<Exception>(() => advisor.AskAsync(e.Game, new GraphicsGoal(60, Priority.Balanced), CancellationToken.None));
 

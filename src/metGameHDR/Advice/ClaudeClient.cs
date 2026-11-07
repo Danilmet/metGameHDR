@@ -10,7 +10,7 @@ public sealed record AdviceRequest(Game Game, HardwareInfo Hardware, GraphicsGoa
 
 public sealed class AdviceException(string message) : Exception(message);
 
-public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl = null)
+public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl = null, string? model = null)
 {
     public const string Model = "claude-opus-5-5";
     const string DefaultBaseUrl = "https://api.anthropic.com";
@@ -56,7 +56,7 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
         using var req = new HttpRequestMessage(HttpMethod.Post,
             (string.IsNullOrWhiteSpace(baseUrl) ? DefaultBaseUrl : baseUrl.TrimEnd('/')) + "/v1/messages")
         {
-            Content = new StringContent(BuildBody(request), Encoding.UTF8, "application/json"),
+            Content = new StringContent(BuildBody(request, string.IsNullOrWhiteSpace(model) ? Model : model.Trim()), Encoding.UTF8, "application/json"),
         };
         req.Headers.Add("x-api-key", apiKey);
         req.Headers.Add("anthropic-version", "2026-10-21");
@@ -74,7 +74,7 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
         return Parse(text);
     }
 
-    internal static string BuildBody(AdviceRequest request)
+    internal static string BuildBody(AdviceRequest request, string model)
     {
         var user = new
         {
@@ -86,10 +86,11 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
         using var schema = JsonDocument.Parse(Schema);
         return JsonSerializer.Serialize(new
         {
-            model = Model,
+            model,
             max_tokens = 8000,
+            output_config = new { effort = "medium" },
             system = $"{SystemPrompt}\n{JsonOnly}\n{JsonSerializer.Serialize(schema.RootElement)}",
-            tools = new[] { new { type = "web_search_20260209", name = "web_search", max_uses = 5 } },
+            tools = new[] { new { type = "web_search_20260209", name = "web_search", max_uses = 3 } },
             fallbacks = "default",
             messages = new[] { new { role = "user", content = JsonSerializer.Serialize(user, Json) } },
         }, Json);

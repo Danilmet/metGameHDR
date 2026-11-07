@@ -8,7 +8,7 @@ public sealed record EditPreview(ConfigEdit Edit, string? Current);
 
 public enum ApplyOutcome { Applied, GameRunning, NoConfig, PathNotCandidate, FileMissing, NotIni, BadEdit }
 
-public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Library lib, string libraryPath, Func<HardwareInfo> hardware,
+public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<string?> model, Library lib, string libraryPath, Func<HardwareInfo> hardware,
     FinderRoots roots, Func<Game, bool> isRunning, HttpClient http)
 {
     public async Task<Advice> AskAsync(Game game, GraphicsGoal goal, CancellationToken ct)
@@ -18,7 +18,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Library
         var hw = hardware();
         var effective = EffectiveGame(lib, game);
         var candidates = ConfigFinder.Find(effective, roots);
-        var result = await new ClaudeClient(http, key, baseUrl()).AskAsync(new AdviceRequest(effective, hw, goal, candidates), ct);
+        var result = await new ClaudeClient(http, key, baseUrl(), model()).AskAsync(new AdviceRequest(effective, hw, goal, candidates), ct);
         var advice = new Advice(result, DateTime.UtcNow);
         var o = lib.For(game);
         o.Goal = goal;
