@@ -29,8 +29,9 @@ public sealed class HdrController(IHdrSwitch hdr, Func<bool> turnOffOnExit, Time
         active = true;
         if (state == false)
         {
-            hdr.Set(true);
+            // set first: if Set throws after switching some monitors, Finish must still turn them off
             weTurnedOn = true;
+            hdr.Set(true);
         }
     }
 

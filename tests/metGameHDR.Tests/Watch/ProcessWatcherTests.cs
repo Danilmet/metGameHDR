@@ -47,6 +47,17 @@ public class ProcessWatcherTests
     }
 
     [Fact]
+    public void Tick_DropsGamePidReusedByAnotherProcess()
+    {
+        var exe = @"C:\G\g.exe";
+        var w = new ProcessWatcher(Lib(), () => [5], _ => exe);
+        Assert.True(w.Tick());
+        exe = @"C:\W\notepad.exe";
+        Assert.False(w.Tick());
+        Assert.Empty(w.GamePids);
+    }
+
+    [Fact]
     public void Tick_IgnoresPidsWithoutPath()
     {
         var w = new ProcessWatcher(Lib(), () => [7], _ => null);

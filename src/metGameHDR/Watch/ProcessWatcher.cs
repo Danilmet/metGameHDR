@@ -18,6 +18,15 @@ public sealed class ProcessWatcher(Library lib, Func<int[]> pids, Func<int, stri
 
     public bool Tick()
     {
+        gone.Clear();
+        foreach (var (pid, game) in games)
+            if (path(pid) is not { } p || lib.FindByPath(p) != game) gone.Add(pid);
+        foreach (var pid in gone)
+        {
+            games.Remove(pid);
+            seen.Remove(pid); // PID reused: let the loop below classify the new process
+        }
+
         var current = pids();
         var next = new HashSet<int>(current);
         foreach (var pid in current)
