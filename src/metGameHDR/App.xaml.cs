@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
@@ -106,8 +107,14 @@ public partial class App : Application
             var args = window.IsVisible ? "" : "--tray";
             Stop();
             instance!.Dispose();
-            Process.Start(exe, args);
-            Shutdown();
+            try { Process.Start(exe, args); }
+            catch (Exception ex)
+            {
+                Log.Write($"Update: new exe failed to start, restoring old: {ex.Message}");
+                File.Move(exe + ".old", exe, overwrite: true);
+                Process.Start(exe, args);
+            }
+            finally { Shutdown(); }
         }
         async Task CheckUpdatesAsync()
         {
@@ -125,7 +132,13 @@ public partial class App : Application
             catch (Exception ex) { Log.Write($"Update check: {ex.Message}"); }
         }
         var updateTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
-        updateTimer.Tick += (_, _) => { updateTimer.Interval = TimeSpan.FromHours(24); _ = CheckUpdatesAsync(); };
+        updateTimer.Tick += (_, _) =>
+        {
+            // the exiting old process may still hold .old at startup
+            Updater.Cleanup(Environment.ProcessPath!, AppPaths.UpdateDir);
+            updateTimer.Interval = TimeSpan.FromHours(24);
+            _ = CheckUpdatesAsync();
+        };
         updateTimer.Start();
         if (showWindow) window.Show();
         DispatcherUnhandledException += (_, a) =>

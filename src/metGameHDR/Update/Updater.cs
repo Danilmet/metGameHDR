@@ -78,7 +78,7 @@ public static class Updater
             await using var dst = new FileStream(zipPath, FileMode.Create);
             await src.CopyToAsync(dst);
         }
-        return Extract(zipPath, Path.Combine(updateDir, "unpacked"));
+        return await Task.Run(() => Extract(zipPath, Path.Combine(updateDir, "unpacked")));
     }
 
     public static string Extract(string zipPath, string dir)
@@ -105,7 +105,7 @@ public static class Updater
 
     public static void Cleanup(string exe, string updateDir)
     {
-        // Ignored: a file still locked by the old process is harmless and is removed on the next update.
+        // Ignored: a file still locked by the old process is harmless and is removed on the next start.
         try { File.Delete(exe + ".old"); } catch (Exception) { }
         try { Directory.Delete(updateDir, recursive: true); } catch (Exception) { }
     }
