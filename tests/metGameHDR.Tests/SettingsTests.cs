@@ -47,4 +47,20 @@ public class SettingsTests
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public void Save_Load_RoundTripsClaudeFields()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            new Settings { ClaudeApiKey = "sk", DefaultFps = 90, DefaultPriority = Advice.Priority.Quality }.Save(path);
+            Assert.Contains("\"DefaultPriority\": \"Quality\"", File.ReadAllText(path));
+            var back = Settings.Load(path);
+            Assert.Equal("sk", back.ClaudeApiKey);
+            Assert.Equal(90, back.DefaultFps);
+            Assert.Equal(Advice.Priority.Quality, back.DefaultPriority);
+        }
+        finally { File.Delete(path); }
+    }
 }

@@ -62,4 +62,44 @@ public class LibraryTests
             File.Delete(path + ".bad");
         }
     }
+
+    [Fact] public void Save_Load_RoundTripsGoalAndAdvice()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        var g = new Game("G", @"C:\G", GameSource.Folder, null);
+        var lib = new Library { Games = [g] };
+        var at = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+        var setting = new SettingAdvice("Shadows", "Low", "fps");
+        var edit = new ConfigEdit("Sec", "k", "v");
+        lib.For(g).Goal = new GraphicsGoal(120, Priority.Responsive);
+        lib.For(g).Advice = new Advice.Advice(new AdviceResult("s", [setting], new ConfigAdvice("a.ini", [edit]), "n"), at);
+        try
+        {
+            lib.Save(path);
+            var o = Library.Load(path).Overrides[@"C:\G"];
+            Assert.Equal(new GraphicsGoal(120, Priority.Responsive), o.Goal);
+            Assert.Equal(at, o.Advice!.At);
+            Assert.Equal("s", o.Advice.Result.Summary);
+            Assert.Equal(setting, o.Advice.Result.Settings.Single());
+            Assert.Equal("a.ini", o.Advice.Result.Config!.Path);
+            Assert.Equal(edit, o.Advice.Result.Config.Edits.Single());
+            Assert.Equal("n", o.Advice.Result.Notes);
+            Assert.Contains("\"Responsive\"", File.ReadAllText(path));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact] public void Load_OldFileWithoutAdviceFields_ReadsDefaults()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        File.WriteAllText(path, """{ "Overrides": { "C:\\G": { "HdrEnabled": false } } }""");
+        try
+        {
+            var o = Library.Load(path).Overrides[@"C:\G"];
+            Assert.False(o.HdrEnabled);
+            Assert.Null(o.Goal);
+            Assert.Null(o.Advice);
+        }
+        finally { File.Delete(path); }
+    }
 }
