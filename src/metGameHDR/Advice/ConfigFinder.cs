@@ -107,7 +107,7 @@ public static class ConfigFinder
         if (!string.IsNullOrEmpty(game.InstallDir))
             names.Add(Path.GetFileName(game.InstallDir.TrimEnd('\\', '/')));
         if (!string.IsNullOrEmpty(game.MainExe)) names.Add(Path.GetFileNameWithoutExtension(game.MainExe));
-        return names.Select(Normalize).Any(x => x.Length > 0 && (x.Contains(n) || n.Contains(x)));
+        return names.Select(Normalize).Any(x => x.Length >= 4 && (x.Contains(n) || n.Contains(x)));
     }
 
     private static IEnumerable<string> UnrealSettings(string projectDir)

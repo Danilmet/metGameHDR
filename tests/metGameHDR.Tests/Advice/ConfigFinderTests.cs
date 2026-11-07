@@ -168,6 +168,7 @@ public class ConfigFinderTests
         var game = MakeGame("Whatever", @"C:\Games\CONTROL.Resonant-InsaneRamZes");
         Assert.True(ConfigFinder.NameMatchesLoose("CONTROLResonant", game));
         Assert.False(ConfigFinder.NameMatchesLoose("Foo", MakeGame("Foo")));
+        Assert.False(ConfigFinder.NameMatchesLoose("RunnerApp", MakeGame("Run")));
     }
 
     [Fact]
