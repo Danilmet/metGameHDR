@@ -10,11 +10,16 @@ public sealed class FolderSource(IEnumerable<string> roots) : IGameSource
     {
         foreach (var root in roots)
         {
-            if (!Directory.Exists(root)) continue;
-            foreach (var dir in Directory.EnumerateDirectories(root))
+            List<string> dirs;
+            try { dirs = Directory.Exists(root) ? Directory.EnumerateDirectories(root).ToList() : []; }
+            catch (Exception e) when (e is UnauthorizedAccessException or IOException) { continue; }
+
+            foreach (var dir in dirs)
             {
                 var name = Path.GetFileName(dir);
-                var exe = MainExe.Pick(dir, name);
+                string? exe;
+                try { exe = MainExe.Pick(dir, name); }
+                catch (Exception e) when (e is UnauthorizedAccessException or IOException) { continue; }
                 if (exe is not null) yield return new Game(name, dir, GameSource.Folder, exe);
             }
         }

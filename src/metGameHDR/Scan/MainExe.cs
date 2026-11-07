@@ -25,12 +25,27 @@ public static class MainExe
         if (candidates.Count == 0) return null;
 
         var name = Normalize(gameName);
-        var best = candidates
-            .Select(c => (Path: c, Dist: Levenshtein(Normalize(Path.GetFileNameWithoutExtension(c)), name)))
-            .MinBy(x => x.Dist);
-        if (best.Dist <= name.Length / 2) return best.Path;
+        var matches = candidates
+            .Select(c => (Path: c, Exe: Normalize(Path.GetFileNameWithoutExtension(c))))
+            .Select(x => (x.Path, x.Exe, Dist: Levenshtein(x.Exe, name)))
+            .Where(x => x.Dist <= name.Length / 2 || IsSubstringMatch(x.Exe, name))
+            .ToList();
+        if (matches.Count > 0) return matches.MinBy(x => x.Dist).Path;
 
-        return candidates.MaxBy(c => new FileInfo(c).Length);
+        return candidates.MaxBy(SafeLength);
+    }
+
+    private static bool IsSubstringMatch(string a, string b)
+    {
+        var (shorter, longer) = a.Length <= b.Length ? (a, b) : (b, a);
+        return shorter.Length >= 3 && longer.Contains(shorter, StringComparison.Ordinal);
+    }
+
+    private static long SafeLength(string path)
+    {
+        try { return new FileInfo(path).Length; }
+        catch (IOException) { return 0; }
+        catch (UnauthorizedAccessException) { return 0; }
     }
 
     private static string Normalize(string s) =>

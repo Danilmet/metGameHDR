@@ -1,14 +1,44 @@
+using System.Diagnostics;
 using MetGameHDR.Scan;
 
 namespace metGameHDR.Tests.Scan;
 
-public class FolderSourceTests
+public class FolderSourceTests : TempFsTest
 {
+    private string? _denied;
+
     [Fact]
     public void Scan_SkipsFoldersWithoutExe()
     {
-        var root = TestFs.TempDir(); Directory.CreateDirectory(Path.Combine(root, "Saves")); var g = Path.Combine(root, "Control"); TestFs.Touch(g, "Control.exe", 1);
+        var root = TempDir(); Directory.CreateDirectory(Path.Combine(root, "Saves")); var g = Path.Combine(root, "Control"); Touch(g, "Control.exe", 1);
         var games = new FolderSource([root, @"C:\nope\" + Guid.NewGuid()]).Scan().ToList();
         Assert.Single(games); Assert.Equal("Control", games[0].Name); Assert.Equal(Path.Combine(g, "Control.exe"), games[0].MainExe);
+    }
+
+    [Fact]
+    public void Scan_UnreadableFolderDoesNotAbortSiblings()
+    {
+        var root = TempDir();
+        Touch(Path.Combine(root, "A"), "A.exe", 1);
+        _denied = Path.Combine(root, "Locked"); Touch(_denied, "Locked.exe", 1);
+        Touch(Path.Combine(root, "Z"), "Z.exe", 1);
+        Icacls($"\"{_denied}\" /deny \"{Environment.UserName}\":(OI)(CI)(RD,RX)");
+
+        var games = new FolderSource([root]).Scan().Select(g => g.Name).OrderBy(n => n).ToList();
+        Assert.Equal(["A", "Z"], games);
+    }
+
+    public override void Dispose()
+    {
+        if (_denied is not null) Icacls($"\"{_denied}\" /remove:d \"{Environment.UserName}\"");
+        base.Dispose();
+    }
+
+    private static void Icacls(string args)
+    {
+        using var p = Process.Start(new ProcessStartInfo("icacls", args) { CreateNoWindow = true, RedirectStandardOutput = true, UseShellExecute = false })!;
+        p.StandardOutput.ReadToEnd();
+        p.WaitForExit();
+        Assert.Equal(0, p.ExitCode);
     }
 }
