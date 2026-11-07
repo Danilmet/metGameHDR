@@ -20,38 +20,44 @@ public static class ShortcutsFile
         File.Move(tmp, path, overwrite: true);
     }
 
-    static VdfObject Shortcuts(VdfObject root)
-    {
-        if (root["shortcuts"] is VdfObject s) return s;
-        s = new VdfObject();
-        root["shortcuts"] = s;
-        return s;
-    }
+    static IEnumerable<VdfObject> Entries(VdfObject root) =>
+        root["shortcuts"] is VdfObject s ? s.Select(p => p.Value).OfType<VdfObject>() : [];
+
+    static string NormDir(string? s) => (s ?? "").Trim().Trim('"').TrimEnd(Seps);
 
     static bool SameDir(string? a, string? b) =>
-        string.Equals(a?.TrimEnd(Seps), b?.TrimEnd(Seps), StringComparison.OrdinalIgnoreCase);
+        string.Equals(NormDir(a), NormDir(b), StringComparison.OrdinalIgnoreCase);
 
     public static VdfObject? Find(VdfObject root, string startDir) =>
-        Shortcuts(root).Select(p => p.Value).OfType<VdfObject>().FirstOrDefault(e => SameDir(e["StartDir"] as string, startDir));
+        Entries(root).FirstOrDefault(e => SameDir(e["StartDir"] as string, startDir));
 
-    public static uint AppIdOf(VdfObject entry) => unchecked((uint)(int)entry["appid"]!);
+    public static uint AppIdOf(VdfObject entry) =>
+        entry["appid"] is int id
+            ? unchecked((uint)id)
+            : ShortcutAppId.Compute(entry["Exe"] as string ?? "", entry["AppName"] as string ?? "");
 
     public static VdfObject Upsert(VdfObject root, string appName, string exePath, string startDir, string icon)
     {
-        var shortcuts = Shortcuts(root);
         var exeQuoted = "\"" + exePath + "\"";
-        var entry = Find(root, startDir)
-            ?? shortcuts.Select(p => p.Value).OfType<VdfObject>().FirstOrDefault(e =>
-                string.Equals(((e["Exe"] as string) ?? "").Trim('"'), exePath, StringComparison.OrdinalIgnoreCase));
+        var entry = Find(root, startDir);
+        var matchedByDir = entry != null;
+        entry ??= Entries(root).FirstOrDefault(e =>
+            string.Equals(((e["Exe"] as string) ?? "").Trim().Trim('"').Trim(), exePath, StringComparison.OrdinalIgnoreCase));
         if (entry != null)
         {
             entry["AppName"] = appName;
             entry["Exe"] = exeQuoted;
-            entry["StartDir"] = startDir;
+            if (!matchedByDir) entry["StartDir"] = startDir;
             entry["icon"] = icon;
             return entry;
         }
 
+        if (root["shortcuts"] is not VdfObject shortcuts)
+        {
+            shortcuts = new VdfObject();
+            root["shortcuts"] = shortcuts;
+        }
+        var next = shortcuts.Select(p => int.TryParse(p.Key, out var n) ? n : -1).DefaultIfEmpty(-1).Max() + 1;
         entry = new VdfObject
         {
             new("appid", unchecked((int)ShortcutAppId.Compute(exeQuoted, appName))),
@@ -72,7 +78,7 @@ public static class ShortcutsFile
             new("FlatpakAppID", ""),
             new("tags", new VdfObject()),
         };
-        shortcuts.Add(new(shortcuts.Count.ToString(), entry));
+        shortcuts.Add(new(next.ToString(), entry));
         return entry;
     }
 }
