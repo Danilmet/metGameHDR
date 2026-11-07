@@ -4,7 +4,7 @@
 
 ## Структура
 - `src/metGameHDR` (root namespace `MetGameHDR`): `Scan/` источники и `Library`, `Watch/` `ProcessWatcher`, `HdrController`, `DisplayConfigHdr`, `Steam/` текстовый и бинарный VDF, `ShortcutsFile`, `SteamGridDb`, `Artwork`, `SteamAdder`, `Advice/` советчик по графике (`Hardware`, `ConfigFinder`, `ClaudeClient`, `IniEditor`, `Advisor`), `Ui/` окно (страница игры `GamePage`: цель, таблица «Сейчас | Рекомендуется», «Применить»/«Отменить»; панель деталей показывает только «подобраны/не подобраны» и «Открыть»), трей, автозапуск, `Covers` (поиск обложек + кэш загрузок SteamGridDB), `Theme` (системная тема), `Backdrop` (DWM-акрил), `Themes/Dark.xaml`, `Light.xaml`, `Controls.xaml` (стили контролов, все цвета через DynamicResource).
-- `tests/metGameHDR.Tests` (xUnit), `tools/make-icon.ps1` (генерирует `src/metGameHDR/assets/icon.ico`; запускать с `-ExecutionPolicy Bypass`), спека и план в `docs/superpowers/`.
+- `tests/metGameHDR.Tests` (xUnit), `tools/make-icon.ps1` (генерирует `src/metGameHDR/assets/icon.ico`; запускать с `-ExecutionPolicy Bypass`), спека и план в `docs/superpowers/`, отложенные темы в `docs/backlog.md`.
 - Сторонних NuGet-пакетов кроме xUnit нет; комментарии в коде только там, где поведение неочевидно.
 
 ## Команды
