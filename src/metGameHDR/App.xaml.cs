@@ -61,6 +61,8 @@ public partial class App : Application
         var hdr = new DisplayConfigHdr();
         var watcher = new ProcessWatcher(lib, ProcessList.Pids, ProcessList.Path);
         var controller = this.controller = new HdrController(hdr, () => settings.TurnOffHdrOnExit, TimeSpan.FromSeconds(3));
+        Theme.Apply(this);
+        Theme.Watch(this);
         var window = new MainWindow(settings, lib, watcher.Reset);
 
         new Thread(() => { while (showEvent!.WaitOne()) Dispatcher.InvokeAsync(() => window.ShowFromTray("second instance")); }) { IsBackground = true }.Start();
