@@ -1,4 +1,4 @@
-# metGameHDR
+# metGameHUB
 
 Трей-приложение для Windows: включает системный HDR, пока запущена игра, и выключает после выхода.
 
@@ -8,23 +8,23 @@
 
 ## Установка
 
-Скачайте zip со страницы [Releases](https://github.com/Danilmet/metGameHDR/releases) и распакуйте в любую папку:
+Скачайте zip со страницы [Releases](https://github.com/Danilmet/metGameHUB/releases) и распакуйте в любую папку:
 
-- `metGameHDR-<версия>-win-x64.zip` — маленький, нужен установленный [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
-- `metGameHDR-<версия>-win-x64-selfcontained.zip` — большой, ничего ставить не нужно.
+- `metGameHUB-<версия>-win-x64.zip` — маленький, нужен установленный [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
+- `metGameHUB-<версия>-win-x64-selfcontained.zip` — большой, ничего ставить не нужно.
 
 Exe не подписан, поэтому при первом запуске SmartScreen покажет предупреждение («Подробнее» → «Выполнить в любом случае»). Установщика нет; галочка «Запускать вместе с Windows» в приложении прописывает автозапуск для текущего пользователя.
 
 ## Использование
 
-Запустите `metGameHDR.exe`. В окне список найденных игр; при закрытии окна приложение остаётся в трее.
+Запустите `metGameHUB.exe`. В окне список найденных игр; при закрытии окна приложение остаётся в трее.
 
 - Добавьте папки с играми или отдельные приложения, которые нужно отслеживать помимо библиотек лаунчеров.
 - Чтобы добавлять игры в Steam с обложками, укажите в настройках ключ API SteamGridDB.
-- `metGameHDR.exe --hdr status|on|off` — ручное переключение HDR из командной строки.
-- `metGameHDR.exe --tray` — запуск без окна (так работает автозапуск).
+- `metGameHUB.exe --hdr status|on|off` — ручное переключение HDR из командной строки.
+- `metGameHUB.exe --tray` — запуск без окна (так работает автозапуск).
 
-Настройки, кэш библиотеки и `log.txt` лежат в `%AppData%\metGameHDR`.
+Настройки, кэш библиотеки и `log.txt` лежат в `%AppData%\metGameHUB`.
 
 ## Как это работает
 
@@ -36,7 +36,7 @@ Exe не подписан, поэтому при первом запуске Sma
 ```
 dotnet build
 dotnet test
-dotnet publish src/metGameHDR -c Release -o publish
+dotnet publish src/metGameHUB -c Release -o publish
 ```
 
 Нужен .NET 8 SDK. Релизы собирает GitHub Actions по тегам `v*`.

@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{371AF9B3-FDAD-4AEC-AC9A-803AABDC27D9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "metGameHUB", "src\metGameHUB\metGameHUB.csproj", "{6E292BE2-AD79-4C7A-A39A-118740C165BB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{21CDB20D-3539-4095-8034-32D0D6CFCA31}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "metGameHUB.Tests", "tests\metGameHUB.Tests\metGameHUB.Tests.csproj", "{84CD1DBE-85A5-48CD-890C-B6E0A3CFF3BB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6E292BE2-AD79-4C7A-A39A-118740C165BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6E292BE2-AD79-4C7A-A39A-118740C165BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6E292BE2-AD79-4C7A-A39A-118740C165BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6E292BE2-AD79-4C7A-A39A-118740C165BB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{84CD1DBE-85A5-48CD-890C-B6E0A3CFF3BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{84CD1DBE-85A5-48CD-890C-B6E0A3CFF3BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{84CD1DBE-85A5-48CD-890C-B6E0A3CFF3BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{84CD1DBE-85A5-48CD-890C-B6E0A3CFF3BB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{6E292BE2-AD79-4C7A-A39A-118740C165BB} = {371AF9B3-FDAD-4AEC-AC9A-803AABDC27D9}
+		{84CD1DBE-85A5-48CD-890C-B6E0A3CFF3BB} = {21CDB20D-3539-4095-8034-32D0D6CFCA31}
+	EndGlobalSection
+EndGlobal

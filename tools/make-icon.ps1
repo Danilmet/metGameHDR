@@ -1,7 +1,7 @@
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$out = Join-Path $root 'src\metGameHDR\assets\icon.ico'
+$out = Join-Path $root 'src\metGameHUB\assets\icon.ico'
 New-Item -ItemType Directory -Force (Split-Path $out) | Out-Null
 
 $size = 256
@@ -27,7 +27,7 @@ $fmt.LineAlignment = 'Center'
 $small = New-Object System.Drawing.Font 'Segoe UI', 54, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Pixel)
 $g.DrawString('met', $small, [System.Drawing.Brushes]::White, (New-Object System.Drawing.RectangleF 0, 18, $size, 70), $fmt)
 $font = New-Object System.Drawing.Font 'Segoe UI', 84, ([System.Drawing.FontStyle]::Bold), ([System.Drawing.GraphicsUnit]::Pixel)
-$g.DrawString('HDR', $font, [System.Drawing.Brushes]::White, (New-Object System.Drawing.RectangleF 0, 76, $size, 100), $fmt)
+$g.DrawString('HUB', $font, [System.Drawing.Brushes]::White, (New-Object System.Drawing.RectangleF 0, 76, $size, 100), $fmt)
 
 $bar = New-Object System.Drawing.Rectangle 48, 182, 160, 8
 $grad = New-Object System.Drawing.Drawing2D.LinearGradientBrush $bar, ([System.Drawing.Color]::Red), ([System.Drawing.Color]::Blue), 0.0
