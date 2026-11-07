@@ -8,26 +8,59 @@ public sealed class DisplayConfigHdr : IHdrSwitch
     const uint QDC_ONLY_ACTIVE_PATHS = 2;
     const uint DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO = 9;
     const uint DISPLAYCONFIG_DEVICE_INFO_SET_ADVANCED_COLOR_STATE = 10;
+    const uint DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO_2 = 15;
+    const uint DISPLAYCONFIG_DEVICE_INFO_SET_HDR_STATE = 16;
+    const uint DISPLAYCONFIG_ADVANCED_COLOR_MODE_HDR = 2;
+    const uint HdrSupported = 1 << 4;
+    const uint HdrUserEnabled = 1 << 5;
+    const int ERROR_NOT_SUPPORTED = 50;
+    const int ERROR_INVALID_PARAMETER = 87;
 
     public bool? IsEnabled()
     {
         bool? result = null;
         foreach (var path in ActivePaths())
         {
-            var info = GetColorInfo(path);
-            if ((info.value & 1) == 0) continue;
-            if ((info.value & 2) != 0) return true;
+            bool supported, enabled;
+            if (TryGetColorInfo2(path, out var info2))
+            {
+                supported = (info2.value & HdrSupported) != 0;
+                enabled = (info2.value & HdrUserEnabled) != 0 || info2.activeColorMode == DISPLAYCONFIG_ADVANCED_COLOR_MODE_HDR;
+            }
+            else
+            {
+                var info = GetColorInfo(path);
+                supported = (info.value & 1) != 0;
+                enabled = (info.value & 2) != 0;
+            }
+            if (!supported) continue;
+            if (enabled) return true;
             result = false;
         }
         return result;
     }
 
-    // shortcut: используется старый API type 9/10; на Windows 11 24H2+ есть DISPLAYCONFIG_SET_HDR_STATE (17), перейти если type 10 перестанет переключать.
+    // Uses 15 GET_ADVANCED_COLOR_INFO_2 / 16 SET_HDR_STATE (17 is SET_WCG_STATE); falls back to 9/10 when rejected (pre-24H2), where "enabled" also counts WCG.
     public void Set(bool on)
     {
         foreach (var path in ActivePaths())
         {
-            if ((GetColorInfo(path).value & 1) == 0) continue;
+            if (TryGetColorInfo2(path, out var info2))
+            {
+                if ((info2.value & HdrSupported) == 0) continue;
+                var hdr = new DISPLAYCONFIG_SET_HDR_STATE
+                {
+                    header = Header(path, DISPLAYCONFIG_DEVICE_INFO_SET_HDR_STATE, Marshal.SizeOf<DISPLAYCONFIG_SET_HDR_STATE>()),
+                    enableHdr = on ? 1u : 0u,
+                };
+                var code = DisplayConfigSetDeviceInfo(ref hdr);
+                if (code != ERROR_INVALID_PARAMETER)
+                {
+                    Check(code);
+                    continue;
+                }
+            }
+            else if ((GetColorInfo(path).value & 1) == 0) continue;
             var state = new DISPLAYCONFIG_SET_ADVANCED_COLOR_STATE
             {
                 header = Header(path, DISPLAYCONFIG_DEVICE_INFO_SET_ADVANCED_COLOR_STATE, Marshal.SizeOf<DISPLAYCONFIG_SET_ADVANCED_COLOR_STATE>()),
@@ -35,6 +68,21 @@ public sealed class DisplayConfigHdr : IHdrSwitch
             };
             Check(DisplayConfigSetDeviceInfo(ref state));
         }
+    }
+
+    public string ColorInfo2Bits() =>
+        string.Join(",", ActivePaths().Select(p => TryGetColorInfo2(p, out var info) ? $"0x{info.value:X}" : "n/a"));
+
+    static bool TryGetColorInfo2(DISPLAYCONFIG_PATH_INFO path, out DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2 info)
+    {
+        info = new DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2
+        {
+            header = Header(path, DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO_2, Marshal.SizeOf<DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2>()),
+        };
+        var code = DisplayConfigGetDeviceInfo(ref info);
+        if (code is ERROR_INVALID_PARAMETER or ERROR_NOT_SUPPORTED) return false;
+        Check(code);
+        return true;
     }
 
     static DISPLAYCONFIG_PATH_INFO[] ActivePaths()
@@ -130,6 +178,23 @@ public sealed class DisplayConfigHdr : IHdrSwitch
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    struct DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2
+    {
+        public DISPLAYCONFIG_DEVICE_INFO_HEADER header;
+        public uint value;
+        public uint colorEncoding;
+        public uint bitsPerColorChannel;
+        public uint activeColorMode;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct DISPLAYCONFIG_SET_HDR_STATE
+    {
+        public DISPLAYCONFIG_DEVICE_INFO_HEADER header;
+        public uint enableHdr;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     struct DISPLAYCONFIG_SET_ADVANCED_COLOR_STATE
     {
         public DISPLAYCONFIG_DEVICE_INFO_HEADER header;
@@ -148,4 +213,10 @@ public sealed class DisplayConfigHdr : IHdrSwitch
 
     [DllImport("user32.dll")]
     static extern int DisplayConfigSetDeviceInfo(ref DISPLAYCONFIG_SET_ADVANCED_COLOR_STATE setPacket);
+
+    [DllImport("user32.dll")]
+    static extern int DisplayConfigGetDeviceInfo(ref DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2 requestPacket);
+
+    [DllImport("user32.dll")]
+    static extern int DisplayConfigSetDeviceInfo(ref DISPLAYCONFIG_SET_HDR_STATE setPacket);
 }

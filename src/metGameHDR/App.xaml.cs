@@ -27,7 +27,12 @@ public partial class App : Application
     static void RunHdrCommand(string command)
     {
         var hdr = new DisplayConfigHdr();
-        if (command is "on" or "off") hdr.Set(command == "on");
+        if (command is "on" or "off")
+        {
+            Log.Write($"--hdr {command}: info2 before {hdr.ColorInfo2Bits()}");
+            hdr.Set(command == "on");
+            Log.Write($"--hdr {command}: info2 after {hdr.ColorInfo2Bits()}");
+        }
         var line = command is "status" or "on" or "off"
             ? hdr.IsEnabled()?.ToString() ?? "null"
             : $"Unknown --hdr command: {command}";
