@@ -1,3 +1,4 @@
+using MetGameHDR.Advice;
 using MetGameHDR.Scan;
 
 namespace MetGameHDR.Tests.Scan;

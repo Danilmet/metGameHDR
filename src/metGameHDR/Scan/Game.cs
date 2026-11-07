@@ -15,4 +15,6 @@ public sealed class GameOverride
     public bool HdrEnabled { get; set; } = true;
     public string? MainExe { get; set; }
     public string? SearchName { get; set; }
+    public Advice.GraphicsGoal? Goal { get; set; }
+    public Advice.Advice? Advice { get; set; }
 }
