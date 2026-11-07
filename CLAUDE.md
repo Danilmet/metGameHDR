@@ -10,6 +10,7 @@
 ## Команды
 - `dotnet build`, `dotnet test`
 - `dotnet publish src/metGameHDR -c Release -o publish` — один exe, framework-dependent win-x64.
+- Релиз: `git tag vX.Y.Z && git push origin vX.Y.Z` — `.github/workflows/release.yml` публикует два zip (framework-dependent и `-selfcontained`, версия из тега) и создаёт GitHub Release. CI (`ci.yml`) гоняет build и test на push/PR в master.
 - `metGameHDR.exe --hdr status|on|off` — ручная проверка HDR; `--tray` — запуск без окна (так прописывается автозапуск в HKCU Run).
 
 ## Данные
