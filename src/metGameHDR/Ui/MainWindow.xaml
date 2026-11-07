@@ -37,7 +37,13 @@
             </Grid.RowDefinitions>
 
             <ListBox x:Name="GamesGrid" SelectionMode="Extended" SelectionChanged="GamesGrid_SelectionChanged"
+                     GotMouseCapture="GamesGrid_GotMouseCapture"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                        <EventSetter Event="PreviewMouseLeftButtonDown" Handler="Card_PreviewMouseLeftButtonDown"/>
+                    </Style>
+                </ListBox.ItemContainerStyle>
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
                         <WrapPanel/>

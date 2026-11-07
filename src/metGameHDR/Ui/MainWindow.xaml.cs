@@ -95,6 +95,21 @@ public partial class MainWindow : Window
         }
     }
 
+    void Card_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is ListBoxItem { IsSelected: true } && GamesGrid.SelectedItems.Count == 1 && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            GamesGrid.UnselectAll();
+            e.Handled = true;
+        }
+    }
+
+    // ListBox captures the mouse on an item click and then selects every item the pointer enters (drag-select); dropping that capture disables it.
+    void GamesGrid_GotMouseCapture(object sender, MouseEventArgs e)
+    {
+        if (ReferenceEquals(e.OriginalSource, GamesGrid)) GamesGrid.ReleaseMouseCapture();
+    }
+
     void GamesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
         DetailsPanel.Visibility = GamesGrid.SelectedItems.Count == 1 ? Visibility.Visible : Visibility.Collapsed;
 
