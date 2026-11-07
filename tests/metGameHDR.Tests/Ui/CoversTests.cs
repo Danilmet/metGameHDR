@@ -79,11 +79,13 @@ public class CoversTests : IDisposable
     sealed class Fake(params (string urlSuffix, byte[] body)[] routes) : HttpMessageHandler
     {
         public int Searches;
+        public int FailingSearches;
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             var url = request.RequestUri!.OriginalString;
-            if (url.Contains("search/autocomplete/")) Interlocked.Increment(ref Searches);
+            if (url.Contains("search/autocomplete/") && Interlocked.Increment(ref Searches) <= FailingSearches)
+                return new HttpResponseMessage(HttpStatusCode.InternalServerError);
             await Task.Delay(20, ct);
             foreach (var (suffix, body) in routes)
                 if (url.EndsWith(suffix))
@@ -116,9 +118,27 @@ public class CoversTests : IDisposable
     [Fact]
     public async Task FetchAsync_NoMatch_ReturnsNull()
     {
-        var http = new HttpClient(new Fake(("search/autocomplete/Foo", Utf8("""{"success":true,"data":[]}"""))));
-        Assert.Null(await new Covers(http, Cache).FetchAsync(Foo(), "Foo", new SteamGridDb(http, "k")));
+        var fake = new Fake(("search/autocomplete/Foo", Utf8("""{"success":true,"data":[]}""")));
+        var http = new HttpClient(fake);
+        var covers = new Covers(http, Cache);
+        var db = new SteamGridDb(http, "k");
+        Assert.Null(await covers.FetchAsync(Foo(), "Foo", db));
+        Assert.Null(await covers.FetchAsync(Foo(), "Foo", db));
         Assert.Empty(Directory.EnumerateFiles(Cache));
+        Assert.Equal(1, fake.Searches);
+    }
+
+    [Fact]
+    public async Task FetchAsync_NetworkError_RetriesNextTime()
+    {
+        var fake = GridFake();
+        fake.FailingSearches = 1;
+        var http = new HttpClient(fake);
+        var covers = new Covers(http, Cache);
+        var db = new SteamGridDb(http, "k");
+        Assert.Null(await covers.FetchAsync(Foo(), "Foo", db));
+        Assert.NotNull(await covers.FetchAsync(Foo(), "Foo", db));
+        Assert.Equal(2, fake.Searches);
     }
 
     [Fact]

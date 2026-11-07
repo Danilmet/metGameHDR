@@ -78,6 +78,7 @@ public sealed class GameRow : INotifyPropertyChanged
             steamStatus = value;
             PropertyChanged?.Invoke(this, new(nameof(SteamStatus)));
             PropertyChanged?.Invoke(this, new(nameof(SteamText)));
+            PropertyChanged?.Invoke(this, new(nameof(Details)));
             PropertyChanged?.Invoke(this, new(nameof(SteamApplies)));
             PropertyChanged?.Invoke(this, new(nameof(SteamAdded)));
         }
@@ -90,6 +91,8 @@ public sealed class GameRow : INotifyPropertyChanged
         Steam.SteamStatus.NoArtwork => "без обложки",
         _ => "",
     };
+
+    public string Details => SteamText.Length == 0 ? Source : $"{Source} · Steam: {SteamText}";
 
     public ImageSource? Cover
     {

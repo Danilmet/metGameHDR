@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     readonly Covers covers = new(Http, AppPaths.CoversDir);
     bool scanning;
     bool addingToSteam;
+    Action? pendingCovers;
 
     public MainWindow(Settings settings, Library lib, Action onLibraryChanged)
     {
@@ -56,7 +57,11 @@ public partial class MainWindow : Window
             RebuildRows();
         };
         Theme.Changed += ApplyBackdrop;
-        IsVisibleChanged += (_, e) => Log.Write($"Window visible={e.NewValue}{Environment.NewLine}{Environment.StackTrace}");
+        IsVisibleChanged += (_, e) =>
+        {
+            Log.Write($"Window visible={e.NewValue}{Environment.NewLine}{Environment.StackTrace}");
+            if ((bool)e.NewValue) RunPendingCovers();
+        };
 
         if (lib.Games.Count > 0) RebuildRows();
         _ = RescanAsync();
@@ -123,7 +128,16 @@ public partial class MainWindow : Window
                 : (SteamStatus?)null;
             rows.Add(new GameRow(g, lib, status, onLibraryChanged));
         }
-        LoadCovers(steam, shortcuts, gridDir);
+        // Covers are decoded on the UI thread, so a hidden window (--tray autostart) waits until it is first shown.
+        pendingCovers = () => LoadCovers(steam, shortcuts, gridDir);
+        if (IsVisible) RunPendingCovers();
+    }
+
+    void RunPendingCovers()
+    {
+        var load = pendingCovers;
+        pendingCovers = null;
+        load?.Invoke();
     }
 
     void LoadCovers(string? steam, VdfObject? shortcuts, string? gridDir)
