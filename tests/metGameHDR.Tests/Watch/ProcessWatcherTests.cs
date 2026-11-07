@@ -44,4 +44,25 @@ public class ProcessWatcherTests
         Assert.Contains(Environment.ProcessId, ProcessList.Pids());
         Assert.NotNull(ProcessList.Path(Environment.ProcessId));
     }
+
+    [Fact]
+    public void ProcessList_PathKeepsNonAsciiChars()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "игра游戏" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var exe = Path.Combine(dir, "cmd.exe");
+        File.Copy(Path.Combine(Environment.SystemDirectory, "cmd.exe"), exe);
+        System.Diagnostics.Process? proc = null;
+        try
+        {
+            proc = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, "/c ping -n 20 127.0.0.1 >nul") { CreateNoWindow = true, UseShellExecute = false });
+            Assert.Equal(exe, ProcessList.Path(proc!.Id), ignoreCase: true);
+        }
+        finally
+        {
+            proc?.Kill();
+            proc?.WaitForExit();
+            Directory.Delete(dir, true);
+        }
+    }
 }
