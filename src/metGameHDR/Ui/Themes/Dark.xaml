@@ -10,6 +10,11 @@
     <SolidColorBrush x:Key="Accent" Color="#0A84FF" />
     <SolidColorBrush x:Key="AccentText" Color="#FFFFFF" />
     <SolidColorBrush x:Key="Hdr" Color="#30D158" />
+    <LinearGradientBrush x:Key="HdrGradient" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="#30D158" Offset="0" />
+        <GradientStop Color="#0A84FF" Offset="0.5" />
+        <GradientStop Color="#BF5AF2" Offset="1" />
+    </LinearGradientBrush>
     <LinearGradientBrush x:Key="Overlay" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#00000000" Offset="0" />
         <GradientStop Color="#E6000000" Offset="1" />
