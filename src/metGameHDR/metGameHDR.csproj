@@ -9,6 +9,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>MetGameHDR</RootNamespace>
     <ApplicationIcon>assets/icon.ico</ApplicationIcon>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup>
 
   <ItemGroup>
