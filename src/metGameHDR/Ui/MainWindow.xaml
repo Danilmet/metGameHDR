@@ -58,71 +58,70 @@
                                 </Border>
                                 <Image Source="{Binding Cover}" Stretch="UniformToFill"/>
                                 <Border VerticalAlignment="Bottom" Background="{DynamicResource Overlay}" Padding="10,28,10,10">
-                                    <DockPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
                                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold"/>
-                                    </DockPanel>
+                                        <Border Grid.Column="1" Margin="6,0,0,0" Padding="4,0" CornerRadius="4" HorizontalAlignment="Right" VerticalAlignment="Center" BorderThickness="1" Visibility="{Binding SteamApplies, Converter={StaticResource BoolToVisibility}}">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="BorderBrush" Value="White"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SteamAdded}" Value="False">
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource TextSecondary}"/>
+                                                            <Setter Property="Opacity" Value="0.85"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock Text="Steam" FontSize="9" FontWeight="Bold">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                        <Setter Property="Foreground" Value="White"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding SteamAdded}" Value="False">
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                                                                <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Border>
+                                    </Grid>
                                 </Border>
                                 <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8" Padding="7,2"
                                         CornerRadius="999" Background="#99000000">
                                     <TextBlock Text="{Binding Source}" Foreground="White" FontSize="10"/>
                                 </Border>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6"
-                                            IsHitTestVisible="False">
-                                    <Border Margin="0" Padding="5,1" CornerRadius="4" BorderThickness="1.5" Background="#B3000000"
-                                            Visibility="{Binding SteamApplies, Converter={StaticResource BoolToVisibility}}">
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding SteamAdded}" Value="False">
-                                                        <Setter Property="BorderBrush" Value="{DynamicResource TextSecondary}"/>
-                                                        <Setter Property="Opacity" Value="0.85"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                        <TextBlock Text="STEAM" FontSize="10" FontWeight="Bold">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                                    <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding SteamAdded}" Value="False">
-                                                            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-                                                            <Setter Property="TextDecorations" Value="Strikethrough"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                    </Border>
-                                    <Border Margin="4,0,0,0" Padding="5,1" CornerRadius="4" BorderThickness="1.5" Background="#B3000000"
-                                            Visibility="{Binding HdrApplies, Converter={StaticResource BoolToVisibility}}">
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource HdrGradient}"/>
+                                <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6" Padding="5,1" CornerRadius="4" Background="#B3000000" IsHitTestVisible="False" BorderThickness="1.5" Visibility="{Binding HdrApplies, Converter={StaticResource BoolToVisibility}}">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="BorderBrush" Value="White"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HdrEnabled}" Value="False">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource TextSecondary}"/>
+                                                    <Setter Property="Opacity" Value="0.85"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="HDR" FontSize="10" FontWeight="Bold">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                <Setter Property="Foreground" Value="White"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding HdrEnabled}" Value="False">
-                                                        <Setter Property="BorderBrush" Value="{DynamicResource TextSecondary}"/>
-                                                        <Setter Property="Opacity" Value="0.85"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                                                        <Setter Property="TextDecorations" Value="Strikethrough"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </Border.Style>
-                                        <TextBlock Text="HDR" FontSize="10" FontWeight="Bold">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                                    <Setter Property="Foreground" Value="{DynamicResource HdrGradient}"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding HdrEnabled}" Value="False">
-                                                            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-                                                            <Setter Property="TextDecorations" Value="Strikethrough"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                    </Border>
-                                </StackPanel>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Border>
                             </Grid>
                         </Border>
                         <DataTemplate.Triggers>
