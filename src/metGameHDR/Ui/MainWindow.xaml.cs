@@ -5,8 +5,10 @@ using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using MetGameHDR.Advice;
 using MetGameHDR.Scan;
 using MetGameHDR.Steam;
+using MetGameHDR.Watch;
 using Forms = System.Windows.Forms;
 
 namespace MetGameHDR.Ui;
@@ -15,8 +17,13 @@ public partial class MainWindow : Window
 {
     static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
+    static readonly HttpClient ClaudeHttp = new() { Timeout = TimeSpan.FromMinutes(3) };
+
     readonly Settings settings;
     readonly Library lib;
+    readonly Advisor advisor;
+    readonly FinderRoots roots = FinderRoots.Default();
+    readonly int monitorHz = Math.Max(Hardware.Detect().Hz, 60);
     readonly Action onLibraryChanged;
     readonly ObservableCollection<GameRow> rows = [];
     readonly Covers covers = new(Http, AppPaths.CoversDir);
@@ -29,11 +36,17 @@ public partial class MainWindow : Window
         this.settings = settings;
         this.lib = lib;
         this.onLibraryChanged = onLibraryChanged;
+        advisor = new Advisor(() => settings.ClaudeApiKey, () => settings.ClaudeBaseUrl, () => settings.ClaudeModel, lib, AppPaths.LibraryFile, Hardware.Detect, roots, IsRunning, ClaudeHttp);
         InitializeComponent();
 
         GamesGrid.ItemsSource = rows;
         RootsList.ItemsSource = settings.FolderRoots;
         KeyBox.Text = settings.SteamGridDbKey ?? "";
+        ClaudeKeyBox.Text = settings.ClaudeApiKey ?? "";
+        ClaudeUrlBox.Text = settings.ClaudeBaseUrl ?? "";
+        ClaudeModelBox.Text = settings.ClaudeModel ?? "";
+        DefaultFpsBox.Text = settings.DefaultFps?.ToString() ?? "";
+        DefaultPriorityBox.SelectedValue = settings.DefaultPriority;
         AutostartBox.IsChecked = Autostart.IsEnabled();
         TurnOffBox.IsChecked = settings.TurnOffHdrOnExit;
         var steam = SteamLocator.SteamPath();
@@ -49,6 +62,38 @@ public partial class MainWindow : Window
         {
             settings.SteamGridDbKey = KeyBox.Text.Trim() is { Length: > 0 } key ? key : null;
             SaveSettings();
+        };
+        ClaudeKeyBox.TextChanged += (_, _) =>
+        {
+            settings.ClaudeApiKey = ClaudeKeyBox.Text.Trim() is { Length: > 0 } key ? key : null;
+            SaveSettings();
+            NotifyDefaultsChanged();
+        };
+        ClaudeUrlBox.TextChanged += (_, _) =>
+        {
+            settings.ClaudeBaseUrl = ClaudeUrlBox.Text.Trim() is { Length: > 0 } url ? url : null;
+            SaveSettings();
+        };
+        ClaudeModelBox.TextChanged += (_, _) =>
+        {
+            settings.ClaudeModel = ClaudeModelBox.Text.Trim() is { Length: > 0 } model ? model : null;
+            SaveSettings();
+        };
+        DefaultFpsBox.TextChanged += (_, _) =>
+        {
+            var text = DefaultFpsBox.Text.Trim();
+            if (text.Length == 0) settings.DefaultFps = null;
+            else if (int.TryParse(text, out var fps) && fps > 0) settings.DefaultFps = fps;
+            else return;
+            SaveSettings();
+            NotifyDefaultsChanged();
+        };
+        DefaultPriorityBox.SelectionChanged += (_, _) =>
+        {
+            if (DefaultPriorityBox.SelectedValue is not Priority priority) return;
+            settings.DefaultPriority = priority;
+            SaveSettings();
+            NotifyDefaultsChanged();
         };
         SteamUserBox.SelectionChanged += (_, _) =>
         {
@@ -88,11 +133,50 @@ public partial class MainWindow : Window
 
     void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && GamesGrid.SelectedItems.Count > 0)
+        if (e.Key != Key.Escape) return;
+        if (GamesTab.IsChecked == true && GamePage.Visibility == Visibility.Visible)
+        {
+            if (InOpenDropDown(Keyboard.FocusedElement) || InOpenDropDown(e.OriginalSource)) return;
+            if (ConfirmLeave()) ShowGamePage(false);
+            e.Handled = true;
+        }
+        else if (GamesGrid.SelectedItems.Count > 0)
         {
             GamesGrid.UnselectAll();
             e.Handled = true;
         }
+    }
+
+    // The popup of a ComboBox is not in its visual tree; its items reach the ComboBox through ItemsControlFromItemContainer.
+    static bool InOpenDropDown(object? source)
+    {
+        for (var d = source as DependencyObject; d != null;
+            d = d is ComboBoxItem item ? ItemsControl.ItemsControlFromItemContainer(item)
+                : d is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D ? System.Windows.Media.VisualTreeHelper.GetParent(d)
+                : LogicalTreeHelper.GetParent(d))
+            if (d is ComboBox { IsDropDownOpen: true }) return true;
+        return false;
+    }
+
+    void ShowGamePage(bool show)
+    {
+        GamePage.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        GamesArea.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    void OpenGamePage_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not GameRow row) return;
+        row.ApplyStatus = "";
+        row.RefreshCanApply();
+        row.RefreshConfig();
+        ShowGamePage(true);
+        Dispatcher.BeginInvoke(() => GoalFpsBox.Focus(), System.Windows.Threading.DispatcherPriority.Input);
+    }
+
+    void CloseGamePage_Click(object sender, RoutedEventArgs e)
+    {
+        if (ConfirmLeave()) ShowGamePage(false);
     }
 
     void Card_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -110,8 +194,11 @@ public partial class MainWindow : Window
         if (ReferenceEquals(e.OriginalSource, GamesGrid)) GamesGrid.ReleaseMouseCapture();
     }
 
-    void GamesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+    void GamesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
         DetailsPanel.Visibility = GamesGrid.SelectedItems.Count == 1 ? Visibility.Visible : Visibility.Collapsed;
+        if (GamesGrid.SelectedItems.Count != 1) ShowGamePage(false);
+    }
 
     protected override void OnClosing(CancelEventArgs e)
     {
@@ -141,7 +228,7 @@ public partial class MainWindow : Window
             var status = shortcuts != null && g.Source is GameSource.Folder or GameSource.App
                 ? SteamAdder.StatusOf(g, shortcuts, gridDir!)
                 : (SteamStatus?)null;
-            rows.Add(new GameRow(g, lib, status, onLibraryChanged));
+            rows.Add(new GameRow(g, lib, status, onLibraryChanged, roots, DefaultGoal, () => !string.IsNullOrWhiteSpace(settings.ClaudeApiKey)));
         }
         // Covers are decoded on the UI thread, so a hidden window (--tray autostart) waits until it is first shown.
         pendingCovers = () => LoadCovers(steam, shortcuts, gridDir);
@@ -271,6 +358,143 @@ public partial class MainWindow : Window
             addingToSteam = false;
             UpdateButtons();
         }
+    }
+
+    GraphicsGoal DefaultGoal() => new(settings.DefaultFps ?? monitorHz, settings.DefaultPriority);
+
+    void NotifyDefaultsChanged()
+    {
+        foreach (var row in rows) row.NotifyDefaultsChanged();
+    }
+
+    static bool IsRunning(Game game) =>
+        ProcessList.Pids().Select(ProcessList.Path)
+            .Any(p => p != null && p.StartsWith(game.InstallDir + "\\", StringComparison.OrdinalIgnoreCase));
+
+    CancellationTokenSource? asking;
+
+    void Ask_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is GameRow row) _ = RunAdviceAsync(row, true);
+    }
+
+    void Locate_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is GameRow row) _ = RunAdviceAsync(row, false);
+    }
+
+    // Stage 1 finds the config file (skipped for «Подобрать» when already located), stage 2 asks for advice.
+    async Task RunAdviceAsync(GameRow row, bool ask)
+    {
+        if (asking != null) return;
+        using var cts = new CancellationTokenSource();
+        asking = cts;
+        SetAsking(row, true);
+        SetStatus(row, "", "");
+        try
+        {
+            if (!ask || !row.Located)
+            {
+                SetStatus(row, "Ищем конфиг…", "");
+                await advisor.LocateAsync(row.Game, cts.Token);
+            }
+            foreach (var r in Targets(row)) r.RefreshConfig();
+            if (!ask) return;
+            if (row.ConfigMissing)
+            {
+                SetStatus(row, "", "Запустите игру один раз и повторите");
+                return;
+            }
+            SetStatus(row, "Подбираем настройки…", "");
+            await advisor.AskAsync(row.Game, row.Goal, cts.Token);
+            // RebuildRows may have replaced the row during the request.
+            foreach (var r in Targets(row))
+            {
+                r.LoadAdvice();
+                r.RefreshCanApply();
+                r.RefreshConfig();
+                r.ApplyStatus = "";
+            }
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            SetStatus(row, "", "Запрос отменён");
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Advice: {ex}");
+            SetStatus(row, "", ex is TaskCanceledException ? "Время ожидания ответа истекло" : ex.Message);
+        }
+        finally
+        {
+            if (ReferenceEquals(asking, cts)) asking = null;
+            SetAsking(row, false);
+        }
+    }
+
+    IEnumerable<GameRow> Targets(GameRow row) =>
+        CurrentRow(row) is { } current && !ReferenceEquals(current, row) ? [row, current] : [row];
+
+    void SetStatus(GameRow row, string stage, string status)
+    {
+        foreach (var r in Targets(row))
+        {
+            r.AskStage = stage;
+            r.AdviceStatus = status;
+        }
+    }
+
+    void SetAsking(GameRow row, bool on)
+    {
+        foreach (var r in Targets(row))
+        {
+            r.IsAsking = on;
+            if (!on) r.AskStage = "";
+        }
+        SettingsTab.IsEnabled = !on;
+        SettingsTab.ToolTip = on ? "Дождитесь ответа или отмените запрос" : null;
+    }
+
+    // True when the page may be left: no request runs, or the user agreed to cancel it.
+    bool ConfirmLeave()
+    {
+        if (asking == null) return true;
+        if (MessageBox.Show(this, "Запрос к Claude ещё выполняется и будет отменён. Выйти?", "metGameHDR",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return false;
+        asking?.Cancel();
+        return true;
+    }
+
+    GameRow? CurrentRow(GameRow row) =>
+        rows.FirstOrDefault(r => string.Equals(r.Game.InstallDir, row.Game.InstallDir, StringComparison.OrdinalIgnoreCase));
+
+    void DetailsPanel_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e) =>
+        (e.NewValue as GameRow)?.RefreshCanApply();
+
+    void Apply_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not GameRow { Latest: { } advice } row) return;
+        try
+        {
+            var outcome = advisor.Apply(row.Game, advice);
+            row.ApplyStatus = outcome switch
+            {
+                ApplyOutcome.Applied => "Применено",
+                ApplyOutcome.GameRunning => "Закройте игру и повторите",
+                ApplyOutcome.FileMissing => "Файл не найден",
+                ApplyOutcome.NotIni => "Файл не в формате INI",
+                ApplyOutcome.BadEdit => "Некорректные правки в ответе",
+                _ => "Нет файла для записи",
+            };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Write($"Apply advice: {ex}");
+            row.ApplyStatus = ex.Message;
+        }
+        row.LoadAdvice();
+        row.RefreshCanApply();
+        row.RefreshConfig();
     }
 
     void AddRoot_Click(object sender, RoutedEventArgs e)
