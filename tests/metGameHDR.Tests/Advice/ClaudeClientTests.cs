@@ -61,7 +61,10 @@ public class ClaudeClientTests
         var root = doc.RootElement;
         Assert.Equal("claude-opus-5-5", root.GetProperty("model").GetString());
         Assert.Equal("web_search_20260209", root.GetProperty("tools")[0].GetProperty("type").GetString());
-        Assert.Equal("json_schema", root.GetProperty("output_config").GetProperty("format").GetProperty("type").GetString());
+        Assert.False(root.TryGetProperty("output_config", out _));
+        var system = root.GetProperty("system").GetString()!;
+        Assert.Contains("Отвечай только одним JSON-объектом по этой схеме", system);
+        Assert.Contains("\"additionalProperties\"", system);
         Assert.Equal("default", root.GetProperty("fallbacks").GetString());
     }
 
@@ -75,6 +78,49 @@ public class ClaudeClientTests
         Assert.Equal(@"C:\g\a.ini", result.Config!.Path);
         Assert.Null(result.Config.Edits[0].Section);
         Assert.Null(result.Notes);
+    }
+
+    static string Blocks(params object[] content) => JsonSerializer.Serialize(new { stop_reason = "end_turn", content });
+
+    [Fact]
+    public void Parse_TextSplitAfterToolResult_ConcatenatesAndIgnoresLeadingText()
+    {
+        var cut = ResultJson.IndexOf("\"settings\"");
+        var json = Blocks(
+            new { type = "text", text = "Ищу материалы..." },
+            new { type = "server_tool_use", name = "web_search" },
+            new { type = "web_search_tool_result", content = "x" },
+            new { type = "text", text = ResultJson[..cut] },
+            new { type = "text", text = ResultJson[cut..] });
+
+        var result = ClaudeClient.Parse(json);
+
+        Assert.Equal(2, result.Settings.Count);
+        Assert.Equal("s", result.Summary);
+    }
+
+    [Fact]
+    public void Parse_NoToolBlocks_ConcatenatesAllText()
+    {
+        var cut = ResultJson.IndexOf("\"settings\"");
+        var json = Blocks(new { type = "text", text = ResultJson[..cut] }, new { type = "text", text = ResultJson[cut..] });
+
+        Assert.Equal(2, ClaudeClient.Parse(json).Settings.Count);
+    }
+
+    [Fact]
+    public void Parse_FencedJson_Parses()
+    {
+        var json = Blocks(new { type = "text", text = "```json\n" + ResultJson + "\n```" });
+
+        Assert.Equal(2, ClaudeClient.Parse(json).Settings.Count);
+    }
+
+    [Fact]
+    public void Parse_PauseTurn_Throws()
+    {
+        var ex = Assert.Throws<AdviceException>(() => ClaudeClient.Parse(Response("pause_turn")));
+        Assert.Contains("Поиск не завершился", ex.Message);
     }
 
     [Fact]

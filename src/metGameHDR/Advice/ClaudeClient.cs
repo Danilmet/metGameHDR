@@ -24,6 +24,8 @@ public sealed class ClaudeClient(HttpClient http, string apiKey)
         4. Пиши по-русски, кратко. summary — 2–3 предложения о том, что упирается в железо и чем пожертвовали.
         """;
 
+    const string JsonOnly = "Отвечай только одним JSON-объектом по этой схеме, без пояснений до или после и без markdown-ограждений:";
+
     const string Schema = """
         {
           "type": "object", "additionalProperties": false,
@@ -85,10 +87,9 @@ public sealed class ClaudeClient(HttpClient http, string apiKey)
         {
             model = Model,
             max_tokens = 8000,
-            system = SystemPrompt,
+            system = $"{SystemPrompt}\n{JsonOnly}\n{JsonSerializer.Serialize(schema.RootElement)}",
             tools = new[] { new { type = "web_search_20260209", name = "web_search", max_uses = 5 } },
             fallbacks = "default",
-            output_config = new { format = new { type = "json_schema", schema = schema.RootElement } },
             messages = new[] { new { role = "user", content = JsonSerializer.Serialize(user, Json) } },
         }, Json);
     }
@@ -103,12 +104,24 @@ public sealed class ClaudeClient(HttpClient http, string apiKey)
             var stop = root.TryGetProperty("stop_reason", out var s) ? s.GetString() : null;
             if (stop == "refusal") throw new AdviceException("Модель отказалась отвечать");
             if (stop == "max_tokens") throw new AdviceException("Ответ оборвался, повторите");
+            if (stop == "pause_turn") throw new AdviceException("Поиск не завершился, повторите запрос");
 
-            string? last = null;
-            foreach (var block in root.GetProperty("content").EnumerateArray())
-                if (block.GetProperty("type").GetString() == "text")
-                    last = block.GetProperty("text").GetString();
-            return (last is null ? null : JsonSerializer.Deserialize<AdviceResult>(last, Json)) ?? throw new AdviceException(garbled);
+            var blocks = root.GetProperty("content").EnumerateArray().ToList();
+            var afterTools = blocks.FindLastIndex(b =>
+            {
+                var t = b.GetProperty("type").GetString()!;
+                return t == "server_tool_use" || t.EndsWith("_tool_result");
+            }) + 1;
+            var answer = string.Concat(blocks.Skip(afterTools)
+                .Where(b => b.GetProperty("type").GetString() == "text")
+                .Select(b => b.GetProperty("text").GetString())).Trim();
+            if (answer.StartsWith("```"))
+            {
+                var nl = answer.IndexOf('\n');
+                answer = (nl < 0 ? "" : answer[(nl + 1)..]).TrimEnd();
+                if (answer.EndsWith("```")) answer = answer[..^3];
+            }
+            return JsonSerializer.Deserialize<AdviceResult>(answer, Json) ?? throw new AdviceException(garbled);
         }
         catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException)
         {
