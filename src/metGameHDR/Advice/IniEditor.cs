@@ -4,7 +4,7 @@ namespace MetGameHDR.Advice;
 
 public static class IniEditor
 {
-    private const string NonKeyPrefixes = "+-.!;#";
+    private const string NonKeyPrefixes = "+-.!;#/";
 
     public static string Apply(string text, IReadOnlyList<ConfigEdit> edits)
     {
@@ -21,7 +21,14 @@ public static class IniEditor
         if (file.Length >= 3 && file[0] == 0xEF && file[1] == 0xBB && file[2] == 0xBF) { enc = new UTF8Encoding(false); bom = 3; }
         else if (file.Length >= 2 && file[0] == 0xFF && file[1] == 0xFE) { enc = new UnicodeEncoding(false, false); bom = 2; }
         else if (file.Length >= 2 && file[0] == 0xFE && file[1] == 0xFF) { enc = new UnicodeEncoding(true, false); bom = 2; }
-        else { enc = new UTF8Encoding(false); bom = 0; }
+        else
+        {
+            bom = 0;
+            enc = new UTF8Encoding(false, throwOnInvalidBytes: true);
+            // Latin1 maps every byte to a char, so ANSI files round-trip untouched.
+            try { enc.GetString(file); }
+            catch (DecoderFallbackException) { enc = Encoding.Latin1; }
+        }
 
         var body = enc.GetBytes(Apply(enc.GetString(file, bom, file.Length - bom), edits));
         return file.Take(bom).Concat(body).ToArray();
@@ -70,6 +77,7 @@ public static class IniEditor
 
     private static int Find(List<string> lines, string? section, string key, out bool sectionFound, out int lastNonBlank)
     {
+        if (string.IsNullOrWhiteSpace(section)) section = null;
         sectionFound = section is null;
         lastNonBlank = -1;
         string? current = null;

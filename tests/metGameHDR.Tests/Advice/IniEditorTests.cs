@@ -74,6 +74,31 @@ public class IniEditorTests
     }
 
     [Fact]
+    public void ApplyBytes_AnsiWithoutBom_PreservesOtherBytes()
+    {
+        byte[] Ansi(string tail) => [.. "n="u8, 0xC4, 0xE0, .. Encoding.ASCII.GetBytes(tail)];
+
+        var result = IniEditor.ApplyBytes(Ansi("\r\na=1\r\n"), E(null, "a", "2"));
+
+        Assert.Equal(Ansi("\r\na=2\r\n"), result);
+    }
+
+    [Fact]
+    public void Apply_EmptySection_IsTreatedAsNull()
+    {
+        Assert.Equal("r_shadows=0\n", IniEditor.Apply("r_shadows=1\n", E("", "r_shadows", "0")));
+        Assert.Equal("r_shadows=0\n", IniEditor.Apply("r_shadows=1\n", E("  ", "r_shadows", "0")));
+        Assert.Equal("1", IniEditor.CurrentValue("r_shadows=1\n", "", "r_shadows"));
+    }
+
+    [Fact]
+    public void Apply_SlashCommentLine_IsNotMatched()
+    {
+        var result = IniEditor.Apply("// r_shadows 1\n", E(null, "r_shadows", "0"));
+        Assert.Equal("// r_shadows 1\nr_shadows=0\n", result);
+    }
+
+    [Fact]
     public void CurrentValue_FirstMatchInSection()
     {
         var text = "a=0\n[S]\nk = first\nk=second\n[T]\nk=other\n";

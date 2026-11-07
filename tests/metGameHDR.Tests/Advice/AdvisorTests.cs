@@ -120,6 +120,74 @@ public class AdvisorTests
     }
 
     [Fact]
+    public void Apply_JsonFile_ReturnsNotIni()
+    {
+        using var e = new Env();
+        File.WriteAllText(e.Ini, "  {\"a\":1}");
+
+        var outcome = e.Advisor().Apply(e.Game, e.AdviceFor(e.Ini));
+
+        Assert.Equal(ApplyOutcome.NotIni, outcome);
+        Assert.Equal("  {\"a\":1}", File.ReadAllText(e.Ini));
+        Assert.False(File.Exists(e.Ini + ".orig"));
+    }
+
+    [Theory]
+    [InlineData("A", "2\r\nEvil=1")]
+    [InlineData("", "2")]
+    [InlineData("A=B", "2")]
+    [InlineData("A\n", "2")]
+    public void Apply_BadEdit_ReturnsBadEdit(string key, string value)
+    {
+        using var e = new Env();
+        var advice = new Advice.Advice(new AdviceResult("s", [], new ConfigAdvice(e.Ini, [new ConfigEdit("S", key, value)]), null), DateTime.UtcNow);
+
+        var outcome = e.Advisor().Apply(e.Game, advice);
+
+        Assert.Equal(ApplyOutcome.BadEdit, outcome);
+        Assert.Equal("[S]\r\nA=1\r\n", File.ReadAllText(e.Ini));
+    }
+
+    [Fact]
+    public void Apply_EditWithNewlineInValue_ReturnsBadEdit()
+    {
+        using var e = new Env();
+
+        var outcome = e.Advisor().Apply(e.Game, e.AdviceFor(e.Ini, "2\nEvil=1"));
+
+        Assert.Equal(ApplyOutcome.BadEdit, outcome);
+    }
+
+    [Fact]
+    public async Task AskAsync_UsesOverrideNameAndExeInRequest()
+    {
+        using var e = new Env();
+        var o = e.Lib.For(e.Game);
+        o.SearchName = "Real Name";
+        o.MainExe = "real.exe";
+        var handler = new CapturingHandler();
+
+        var advisor = new Advisor(() => "key", e.Lib, e.LibPath, () => new HardwareInfo("GPU", 8, "CPU", 16, 1920, 1080, 60, "Win"),
+            e.Roots, _ => false, new HttpClient(handler));
+        await Assert.ThrowsAnyAsync<Exception>(() => advisor.AskAsync(e.Game, new GraphicsGoal(60, Priority.Balanced), CancellationToken.None));
+
+        Assert.Contains("Real Name", handler.Body);
+        Assert.Contains("real.exe", handler.Body);
+        Assert.DoesNotContain("g.exe", handler.Body);
+    }
+
+    sealed class CapturingHandler : HttpMessageHandler
+    {
+        public string Body = "";
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Body = await request.Content!.ReadAsStringAsync(ct);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") };
+        }
+    }
+
+    [Fact]
     public void Preview_ReturnsCurrentValues()
     {
         using var e = new Env();
