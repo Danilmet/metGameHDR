@@ -10,6 +10,12 @@ public sealed class ProcessWatcher(Library lib, Func<int[]> pids, Func<int, stri
 
     public IReadOnlyCollection<int> GamePids => games.Keys;
 
+    public void Reset()
+    {
+        seen.Clear();
+        games.Clear();
+    }
+
     public bool Tick()
     {
         var current = pids();

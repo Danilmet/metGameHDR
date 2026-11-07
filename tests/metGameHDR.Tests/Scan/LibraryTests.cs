@@ -30,4 +30,20 @@ public class LibraryTests
         var back = Library.Load(path);
         Assert.Equal(@"C:\G\b.exe", back.MainExeOf(back.Games[0]));
     }
+
+    [Fact] public void Load_CorruptFile_ReturnsEmptyLibraryAndSetsFileAside()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        File.WriteAllText(path, """{ "Games": [ {"Name": """);
+        try
+        {
+            Assert.Empty(Library.Load(path).Games);
+            Assert.False(File.Exists(path));
+            Assert.True(File.Exists(path + ".bad"));
+        }
+        finally
+        {
+            File.Delete(path + ".bad");
+        }
+    }
 }

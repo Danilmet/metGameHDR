@@ -32,6 +32,21 @@ public class ProcessWatcherTests
     }
 
     [Fact]
+    public void Reset_ReevaluatesRunningPidsAgainstCurrentLibrary()
+    {
+        var lib = new Library();
+        var w = new ProcessWatcher(lib, () => [2], _ => @"C:\G\g.exe");
+        Assert.False(w.Tick());
+        lib.Games = Lib().Games;
+        Assert.False(w.Tick());
+        w.Reset();
+        Assert.True(w.Tick());
+        lib.For(lib.Games[0]).HdrEnabled = false;
+        w.Reset();
+        Assert.False(w.Tick());
+    }
+
+    [Fact]
     public void Tick_IgnoresPidsWithoutPath()
     {
         var w = new ProcessWatcher(Lib(), () => [7], _ => null);

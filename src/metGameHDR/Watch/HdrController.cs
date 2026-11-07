@@ -34,7 +34,7 @@ public sealed class HdrController(IHdrSwitch hdr, Func<bool> turnOffOnExit, Time
         }
     }
 
-    void Finish()
+    public void Finish()
     {
         if (weTurnedOn && turnOffOnExit()) hdr.Set(false);
         active = false;

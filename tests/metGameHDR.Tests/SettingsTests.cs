@@ -12,6 +12,24 @@ public class SettingsTests
     }
 
     [Fact]
+    public void Load_CorruptFile_ReturnsDefaultsAndSetsFileAside()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        File.WriteAllText(path, """{ "FolderRoots": ["C:\Games"] }""");
+        try
+        {
+            var s = Settings.Load(path);
+            Assert.Empty(s.FolderRoots);
+            Assert.False(File.Exists(path));
+            Assert.True(File.Exists(path + ".bad"));
+        }
+        finally
+        {
+            File.Delete(path + ".bad");
+        }
+    }
+
+    [Fact]
     public void Save_Then_Load_Roundtrips()
     {
         var path = Path.GetTempFileName();

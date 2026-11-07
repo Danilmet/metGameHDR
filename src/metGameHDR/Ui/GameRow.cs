@@ -7,13 +7,15 @@ namespace MetGameHDR.Ui;
 public sealed class GameRow : INotifyPropertyChanged
 {
     readonly Library lib;
+    readonly Action onHdrChanged;
     SteamStatus? steamStatus;
 
-    public GameRow(Game game, Library lib, SteamStatus? steamStatus)
+    public GameRow(Game game, Library lib, SteamStatus? steamStatus, Action onHdrChanged)
     {
         Game = game;
         this.lib = lib;
         this.steamStatus = steamStatus;
+        this.onHdrChanged = onHdrChanged;
         ExeCandidates = game.Source == GameSource.Folder ? Scan.MainExe.Candidates(game.InstallDir)
             : game.MainExe != null ? [game.MainExe] : Array.Empty<string>();
     }
@@ -25,11 +27,17 @@ public sealed class GameRow : INotifyPropertyChanged
     public string Source => Game.Source.ToString();
     public IReadOnlyList<string> ExeCandidates { get; }
     public bool CanAddToSteam => Game.Source is GameSource.Folder or GameSource.App;
+    public bool HdrApplies => Game.Source != GameSource.App;
 
     public bool HdrEnabled
     {
         get => !lib.Overrides.TryGetValue(Game.InstallDir, out var o) || o.HdrEnabled;
-        set { lib.For(Game).HdrEnabled = value; Save(); }
+        set
+        {
+            lib.For(Game).HdrEnabled = value;
+            Save();
+            onHdrChanged();
+        }
     }
 
     public string? MainExe
@@ -49,7 +57,9 @@ public sealed class GameRow : INotifyPropertyChanged
         get => lib.SearchNameOf(Game);
         set
         {
-            lib.For(Game).SearchName = string.IsNullOrWhiteSpace(value) ? null : value;
+            var name = string.IsNullOrWhiteSpace(value) || value == Game.Name ? null : value;
+            if ((name ?? Game.Name) == lib.SearchNameOf(Game)) return;
+            lib.For(Game).SearchName = name;
             Save();
         }
     }

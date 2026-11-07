@@ -15,12 +15,16 @@ public partial class MainWindow : Window
 
     readonly Settings settings;
     readonly Library lib;
+    readonly Action onLibraryChanged;
     readonly ObservableCollection<GameRow> rows = [];
+    bool scanning;
+    bool addingToSteam;
 
-    public MainWindow(Settings settings, Library lib)
+    public MainWindow(Settings settings, Library lib, Action onLibraryChanged)
     {
         this.settings = settings;
         this.lib = lib;
+        this.onLibraryChanged = onLibraryChanged;
         InitializeComponent();
 
         GamesGrid.ItemsSource = rows;
@@ -29,10 +33,13 @@ public partial class MainWindow : Window
         AutostartBox.IsChecked = Autostart.IsEnabled();
         TurnOffBox.IsChecked = settings.TurnOffHdrOnExit;
         var steam = SteamLocator.SteamPath();
-        var userdata = steam == null ? null : Path.Combine(steam, "userdata");
-        if (userdata != null && Directory.Exists(userdata))
-            SteamUserBox.ItemsSource = Directory.GetDirectories(userdata).Select(Path.GetFileName).ToList();
-        SteamUserBox.SelectedItem = CurrentSteamUser(steam);
+        if (steam != null)
+        {
+            var userdata = Path.Combine(steam, "userdata");
+            if (Directory.Exists(userdata))
+                SteamUserBox.ItemsSource = Directory.GetDirectories(userdata).Select(Path.GetFileName).ToList();
+            SteamUserBox.SelectedItem = CurrentSteamUser(steam);
+        }
 
         KeyBox.TextChanged += (_, _) =>
         {
@@ -63,18 +70,17 @@ public partial class MainWindow : Window
         Hide();
     }
 
-    string? CurrentSteamUser(string? steam) =>
-        !string.IsNullOrWhiteSpace(settings.SteamUserId) ? settings.SteamUserId
-        : steam == null ? null : SteamLocator.MostRecentUserId(steam);
+    string? CurrentSteamUser(string steam) =>
+        !string.IsNullOrWhiteSpace(settings.SteamUserId) ? settings.SteamUserId : SteamLocator.MostRecentUserId(steam);
 
     void RebuildRows()
     {
         VdfObject? shortcuts = null;
         string? gridDir = null;
         var steam = SteamLocator.SteamPath();
-        if (CurrentSteamUser(steam) is { } user)
+        if (steam != null && CurrentSteamUser(steam) is { } user)
         {
-            var configDir = SteamLocator.UserConfigDir(steam!, user);
+            var configDir = SteamLocator.UserConfigDir(steam, user);
             gridDir = Path.Combine(configDir, "grid");
             try { shortcuts = ShortcutsFile.Load(Path.Combine(configDir, "shortcuts.vdf")); }
             catch (Exception e) { Log.Write($"shortcuts.vdf: {e.Message}"); }
@@ -86,20 +92,29 @@ public partial class MainWindow : Window
             var status = shortcuts != null && g.Source is GameSource.Folder or GameSource.App
                 ? SteamAdder.StatusOf(g, shortcuts, gridDir!)
                 : (SteamStatus?)null;
-            rows.Add(new GameRow(g, lib, status));
+            rows.Add(new GameRow(g, lib, status, onLibraryChanged));
         }
+    }
+
+    void UpdateButtons()
+    {
+        RefreshButton.IsEnabled = !scanning;
+        AddAppButton.IsEnabled = !scanning;
+        AddToSteamButton.IsEnabled = !scanning && !addingToSteam;
     }
 
     async Task RescanAsync()
     {
-        RefreshButton.IsEnabled = false;
+        scanning = true;
+        UpdateButtons();
         StatusText.Text = "Сканирование…";
         try
         {
             var snapshot = new Settings { FolderRoots = [.. settings.FolderRoots], Apps = [.. settings.Apps] };
             lib.Games = await Task.Run(() => LibraryScanner.Scan(LibraryScanner.DefaultSources(snapshot), Log.Write));
-            lib.Save(AppPaths.LibraryFile);
+            onLibraryChanged();
             RebuildRows();
+            lib.Save(AppPaths.LibraryFile);
         }
         catch (Exception e)
         {
@@ -109,7 +124,8 @@ public partial class MainWindow : Window
         finally
         {
             StatusText.Text = "";
-            RefreshButton.IsEnabled = true;
+            scanning = false;
+            UpdateButtons();
         }
     }
 
@@ -124,22 +140,31 @@ public partial class MainWindow : Window
         };
         if (dialog.ShowDialog(this) != true) return;
 
-        var path = dialog.FileName;
-        if (path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
+        try
         {
-            dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
-            path = (string)shell.CreateShortcut(path).TargetPath;
-        }
-        if (!path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || !File.Exists(path))
-        {
-            ShowError($"Ярлык не указывает на exe: {path}");
-            return;
-        }
+            var path = dialog.FileName;
+            if (path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
+            {
+                dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
+                path = (string)shell.CreateShortcut(path).TargetPath;
+            }
+            if (!path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || !File.Exists(path))
+            {
+                ShowError($"Ярлык не указывает на exe: {path}");
+                return;
+            }
 
-        if (!settings.Apps.Contains(path, StringComparer.OrdinalIgnoreCase))
+            if (!settings.Apps.Contains(path, StringComparer.OrdinalIgnoreCase))
+            {
+                settings.Apps.Add(path);
+                settings.Save(AppPaths.SettingsFile);
+            }
+        }
+        catch (Exception ex)
         {
-            settings.Apps.Add(path);
-            SaveSettings();
+            Log.Write($"Add app: {ex}");
+            ShowError(ex.Message);
+            return;
         }
         await RescanAsync();
     }
@@ -149,7 +174,8 @@ public partial class MainWindow : Window
         var selected = GamesGrid.SelectedItems.Cast<GameRow>().Where(r => r.CanAddToSteam).ToList();
         if (selected.Count == 0) return;
 
-        AddToSteamButton.IsEnabled = false;
+        addingToSteam = true;
+        UpdateButtons();
         try
         {
             var result = await SteamAdder.AddAsync(selected.Select(r => r.Game).ToList(), lib, settings, Http, Log.Write);
@@ -163,7 +189,8 @@ public partial class MainWindow : Window
         }
         finally
         {
-            AddToSteamButton.IsEnabled = true;
+            addingToSteam = false;
+            UpdateButtons();
         }
     }
 
@@ -187,8 +214,16 @@ public partial class MainWindow : Window
 
     void Autostart_Click(object sender, RoutedEventArgs e)
     {
-        settings.Autostart = AutostartBox.IsChecked == true;
-        Autostart.Set(settings.Autostart);
+        var on = AutostartBox.IsChecked == true;
+        try { Autostart.Set(on); }
+        catch (Exception ex)
+        {
+            Log.Write($"Autostart: {ex}");
+            ShowError(ex.Message);
+            AutostartBox.IsChecked = Autostart.IsEnabled();
+            return;
+        }
+        settings.Autostart = on;
         SaveSettings();
     }
 
@@ -198,8 +233,19 @@ public partial class MainWindow : Window
         SaveSettings();
     }
 
-    void SaveSettings() => settings.Save(AppPaths.SettingsFile);
+    void SaveSettings()
+    {
+        try { settings.Save(AppPaths.SettingsFile); }
+        catch (Exception e)
+        {
+            Log.Write($"Save settings: {e}");
+            ShowError(e.Message);
+        }
+    }
 
-    void ShowError(string message) =>
-        MessageBox.Show(this, message, "metGameHDR", MessageBoxButton.OK, MessageBoxImage.Error);
+    void ShowError(string message)
+    {
+        if (IsVisible) MessageBox.Show(this, message, "metGameHDR", MessageBoxButton.OK, MessageBoxImage.Error);
+        else MessageBox.Show(message, "metGameHDR", MessageBoxButton.OK, MessageBoxImage.Error);
+    }
 }

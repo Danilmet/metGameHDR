@@ -16,7 +16,7 @@ public static class Autostart
     public static void Set(bool on)
     {
         using var key = Registry.CurrentUser.CreateSubKey(RunKey);
-        if (on) key.SetValue(ValueName, $"\"{Environment.ProcessPath}\"");
+        if (on) key.SetValue(ValueName, $"\"{Environment.ProcessPath}\" --tray");
         else key.DeleteValue(ValueName, throwOnMissingValue: false);
     }
 }

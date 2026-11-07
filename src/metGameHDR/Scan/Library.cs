@@ -29,10 +29,16 @@ public sealed class Library
     public static Library Load(string path)
     {
         if (!File.Exists(path)) return new Library();
-        var lib = JsonSerializer.Deserialize<Library>(File.ReadAllText(path), Options) ?? new Library();
+        Library lib;
+        try { lib = JsonSerializer.Deserialize<Library>(File.ReadAllText(path), Options) ?? new Library(); }
+        catch (Exception e) when (e is JsonException or IOException)
+        {
+            Settings.SetAside(path, e);
+            return new Library();
+        }
         lib.Overrides = new(lib.Overrides, StringComparer.OrdinalIgnoreCase);
         return lib;
     }
 
-    public void Save(string path) => File.WriteAllText(path, JsonSerializer.Serialize(this, Options));
+    public void Save(string path) => Settings.WriteAtomic(path, JsonSerializer.Serialize(this, Options));
 }

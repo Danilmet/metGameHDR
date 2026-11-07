@@ -14,10 +14,30 @@ public sealed class Settings
     public bool Autostart { get; set; }
     public bool TurnOffHdrOnExit { get; set; } = true;
 
-    public static Settings Load(string path) =>
-        File.Exists(path)
-            ? JsonSerializer.Deserialize<Settings>(File.ReadAllText(path), Options) ?? new Settings()
-            : new Settings();
+    public static Settings Load(string path)
+    {
+        if (!File.Exists(path)) return new Settings();
+        try { return JsonSerializer.Deserialize<Settings>(File.ReadAllText(path), Options) ?? new Settings(); }
+        catch (Exception e) when (e is JsonException or IOException)
+        {
+            SetAside(path, e);
+            return new Settings();
+        }
+    }
 
-    public void Save(string path) => File.WriteAllText(path, JsonSerializer.Serialize(this, Options));
+    public void Save(string path) => WriteAtomic(path, JsonSerializer.Serialize(this, Options));
+
+    internal static void SetAside(string path, Exception error)
+    {
+        Log.Write($"{Path.GetFileName(path)} unreadable, using defaults: {error.Message}");
+        try { File.Move(path, path + ".bad", overwrite: true); }
+        catch (IOException e) { Log.Write($"{Path.GetFileName(path)}: cannot rename to .bad: {e.Message}"); }
+    }
+
+    internal static void WriteAtomic(string path, string text)
+    {
+        var tmp = path + ".tmp";
+        File.WriteAllText(tmp, text);
+        File.Move(tmp, path, overwrite: true);
+    }
 }

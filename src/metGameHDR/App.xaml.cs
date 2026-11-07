@@ -18,22 +18,25 @@ public partial class App : Application
             Shutdown(0);
             return;
         }
-        StartTray();
+        StartTray(showWindow: !e.Args.Contains("--tray"));
     }
 
-    void StartTray()
+    void StartTray(bool showWindow)
     {
         var settings = Settings.Load(AppPaths.SettingsFile);
         var lib = Library.Load(AppPaths.LibraryFile);
         var hdr = new DisplayConfigHdr();
         var watcher = new ProcessWatcher(lib, ProcessList.Pids, ProcessList.Path);
         var controller = new HdrController(hdr, () => settings.TurnOffHdrOnExit, TimeSpan.FromSeconds(3));
-        var window = new MainWindow(settings, lib);
+        var window = new MainWindow(settings, lib, watcher.Reset);
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        string? lastError = null;
         Tray? tray = null;
         tray = new Tray(window.ShowFromTray, () =>
         {
             timer.Stop();
+            try { controller.Finish(); }
+            catch (Exception ex) { Log.Write($"Exit: {ex}"); }
             tray!.Dispose();
             Shutdown();
         });
@@ -47,11 +50,12 @@ public partial class App : Application
             catch (Exception ex)
             {
                 Log.Write($"Tick: {ex}");
-                tray.ShowError(ex.Message);
+                if (ex.Message != lastError) tray.ShowError(ex.Message);
+                lastError = ex.Message;
             }
         };
         timer.Start();
-        window.Show();
+        if (showWindow) window.Show();
     }
 
     static void RunHdrCommand(string command)
