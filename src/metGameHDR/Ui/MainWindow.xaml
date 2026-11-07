@@ -108,7 +108,7 @@
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>
-                                    <TextBlock Text="HDR" FontSize="10" FontWeight="Bold" TextDecorations="Strikethrough">
+                                    <TextBlock Text="nonHDR" FontSize="10" FontWeight="Bold">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
                                                 <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
