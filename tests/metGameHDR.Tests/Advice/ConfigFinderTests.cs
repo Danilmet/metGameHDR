@@ -86,6 +86,42 @@ public class ConfigFinderTests
     }
 
     [Fact]
+    public void Find_MasksCredentialLikeValues()
+    {
+        WithTemp(dir =>
+        {
+            var install = Path.Combine(dir, "game");
+            Directory.CreateDirectory(install);
+            File.WriteAllText(Path.Combine(install, "a.ini"), "Password=abc\r\nWidth=1920\r\nsession_token = xyz\r\n");
+
+            var c = Assert.Single(ConfigFinder.Find(MakeGame("Zed", install), Roots(dir)));
+
+            Assert.Contains("Password=***", c.Text);
+            Assert.Contains("Width=1920", c.Text);
+            Assert.Contains("session_token = ***\r\n", c.Text);
+            Assert.DoesNotContain("abc", c.Text);
+            Assert.DoesNotContain("xyz", c.Text);
+        });
+    }
+
+    [Fact]
+    public void Find_SkipsEmuConfigsAndFilesOverOneMegabyte()
+    {
+        WithTemp(dir =>
+        {
+            var roots = Roots(dir);
+            Write(Path.Combine(roots.Documents, "My Games", "Zed", "settings_huge.ini"), ConfigFinder.MaxFileBytes + 1);
+            Write(Path.Combine(roots.Documents, "My Games", "Zed", "steam_emu_settings.ini"), 10);
+            Write(Path.Combine(roots.Documents, "My Games", "Zed", "CREAM_API_config.ini"), 10);
+            Write(Path.Combine(roots.Documents, "My Games", "Zed", "video.ini"), 10);
+
+            var c = Assert.Single(ConfigFinder.Find(MakeGame("Zed"), roots));
+
+            Assert.EndsWith("video.ini", c.Path);
+        });
+    }
+
+    [Fact]
     public void Find_NoMatches_ReturnsEmpty()
     {
         WithTemp(dir => Assert.Empty(ConfigFinder.Find(MakeGame("Zed", Path.Combine(dir, "none")), Roots(dir))));

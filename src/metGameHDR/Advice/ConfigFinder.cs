@@ -16,9 +16,11 @@ public sealed record FinderRoots(string LocalAppData, string Documents, string S
 
 public static class ConfigFinder
 {
-    public const int MaxFiles = 3, MaxTotalBytes = 100 * 1024, MaxRootFileBytes = 64 * 1024;
+    public const int MaxFiles = 3, MaxTotalBytes = 100 * 1024, MaxRootFileBytes = 64 * 1024, MaxFileBytes = 1024 * 1024;
 
     private static readonly string[] Keywords = ["settings", "config", "video", "graphics", "user"];
+    private static readonly string[] SecretKeys = ["pass", "pwd", "token", "secret", "session", "auth", "ticket", "credential"];
+    private static readonly string[] EmuPrefixes = ["steam_emu", "cream_api"];
 
     public static IReadOnlyList<ConfigCandidate> Find(Game game, FinderRoots roots)
     {
@@ -26,8 +28,15 @@ public static class ConfigFinder
         var total = 0;
         foreach (var path in Paths(game, roots))
         {
+            var fileName = Path.GetFileName(path);
+            if (EmuPrefixes.Any(p => fileName.StartsWith(p, StringComparison.OrdinalIgnoreCase))) continue;
+
             string text;
-            try { text = File.ReadAllText(path); }
+            try
+            {
+                if (new FileInfo(path).Length > MaxFileBytes) continue;
+                text = MaskSecrets(File.ReadAllText(path));
+            }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { continue; }
 
             var bytes = Encoding.UTF8.GetBytes(text);
@@ -39,6 +48,31 @@ public static class ConfigFinder
             if (result.Count >= MaxFiles || total >= MaxTotalBytes) break;
         }
         return result;
+    }
+
+    internal static string MaskSecrets(string text) => string.Join('\n', text.Split('\n').Select(MaskLine));
+
+    private static string MaskLine(string line)
+    {
+        var body = line.TrimEnd('\r');
+        var start = body.Length - body.TrimStart().Length;
+        if (start == body.Length || body[start] == '[') return line;
+        var sep = body.IndexOfAny(['=', ' ', '\t'], start);
+        if (sep < 0) return line;
+        var key = body[start..sep];
+        if (!SecretKeys.Any(s => key.Contains(s, StringComparison.OrdinalIgnoreCase))) return line;
+
+        var i = sep;
+        while (i < body.Length && char.IsWhiteSpace(body[i])) i++;
+        if (i < body.Length && body[i] == '=') i++;
+        while (i < body.Length && char.IsWhiteSpace(body[i])) i++;
+        return body[..i] + "***" + line[body.Length..];
+    }
+
+    private static bool WithinSize(string path, int max)
+    {
+        try { return new FileInfo(path).Length <= max; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
     }
 
     internal static string Normalize(string name) =>
@@ -71,7 +105,7 @@ public static class ConfigFinder
         {
             foreach (var pattern in new[] { "*.ini", "*.cfg" })
                 foreach (var f in SafeFiles(game.InstallDir, pattern))
-                    if (new FileInfo(f).Length <= MaxRootFileBytes) yield return f;
+                    if (WithinSize(f, MaxRootFileBytes)) yield return f;
         }
 
         foreach (var root in new[] { Path.Combine(roots.Documents, "My Games"), roots.SavedGames })
@@ -95,6 +129,6 @@ public static class ConfigFinder
     private static string[] Safe(Func<string[]> list)
     {
         try { return list(); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return []; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException) { return []; }
     }
 }

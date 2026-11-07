@@ -58,28 +58,34 @@ public static class Hardware
 
     static (string, int?) Gpu()
     {
-        string? name = null;
+        string? name = null, best = null;
+        long bestBytes = 0;
         try
         {
             using var cls = Registry.LocalMachine.OpenSubKey(DisplayClass);
             if (cls == null) return (Unknown, null);
             foreach (var sub in cls.GetSubKeyNames().Where(n => n.Length == 4 && n.All(char.IsDigit)).Order())
             {
-                using var k = cls.OpenSubKey(sub);
-                var desc = k?.GetValue("DriverDesc") as string;
-                if (string.IsNullOrWhiteSpace(desc)) continue;
-                name ??= desc;
-                var bytes = k!.GetValue("HardwareInformation.qwMemorySize") switch
+                try
                 {
-                    long l => l,
-                    byte[] { Length: >= 8 } b => BitConverter.ToInt64(b, 0),
-                    _ => 0L,
-                };
-                if (bytes > 0) return (desc, (int)Math.Round(bytes / 1073741824.0));
+                    using var k = cls.OpenSubKey(sub);
+                    var desc = k?.GetValue("DriverDesc") as string;
+                    if (string.IsNullOrWhiteSpace(desc)) continue;
+                    name ??= desc;
+                    var bytes = k!.GetValue("HardwareInformation.qwMemorySize") switch
+                    {
+                        long l => l,
+                        int i => (uint)i,
+                        byte[] { Length: >= 8 } b => BitConverter.ToInt64(b, 0),
+                        _ => 0L,
+                    };
+                    if (bytes > bestBytes) (best, bestBytes) = (desc, bytes);
+                }
+                catch { }
             }
         }
         catch { }
-        return (name ?? Unknown, null);
+        return bestBytes > 0 ? (best!, (int)Math.Round(bestBytes / 1073741824.0)) : (name ?? Unknown, null);
     }
 
     static string Cpu()
