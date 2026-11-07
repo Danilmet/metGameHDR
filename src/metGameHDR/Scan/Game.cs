@@ -2,7 +2,7 @@ namespace MetGameHDR.Scan;
 
 public enum GameSource { Steam, Epic, Gog, Ubisoft, Ea, Xbox, Folder, App }
 
-public sealed record Game(string Name, string InstallDir, GameSource Source, string? MainExe, string? LaunchOptions = null);
+public sealed record Game(string Name, string InstallDir, GameSource Source, string? MainExe, string? LaunchOptions = null, string? SteamAppId = null);
 
 public interface IGameSource
 {

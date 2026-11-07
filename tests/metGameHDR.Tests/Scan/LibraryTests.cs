@@ -38,6 +38,14 @@ public class LibraryTests
         Assert.Equal(@"C:\G\b.exe", back.MainExeOf(back.Games[0]));
     }
 
+    [Fact] public void Load_LibraryWithoutSteamAppId_Reads()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        File.WriteAllText(path, """{ "Games": [ { "Name": "G", "InstallDir": "C:\\G", "Source": 0, "MainExe": null, "LaunchOptions": null } ] }""");
+        try { Assert.Null(Library.Load(path).Games.Single().SteamAppId); }
+        finally { File.Delete(path); }
+    }
+
     [Fact] public void Load_CorruptFile_ReturnsEmptyLibraryAndSetsFileAside()
     {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
