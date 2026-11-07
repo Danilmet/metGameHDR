@@ -47,6 +47,7 @@ public static class SteamAdder
             catch (Exception e) { log($"{g.Name}: {e.Message}"); }
             toWrite.Add((g, exe, icon ?? ""));
         }
+        if (toWrite.Count == 0) return Statuses(draft);
 
         var wasRunning = SteamProcess.IsRunning();
         VdfObject? root = null;
@@ -63,8 +64,13 @@ public static class SteamAdder
             finally { if (wasRunning) SteamProcess.Start(steamPath); }
         }
 
-        var result = new Dictionary<Game, SteamStatus>();
-        foreach (var g in games) result[g] = StatusOf(g, root, gridDir);
-        return result;
+        return Statuses(root);
+
+        Dictionary<Game, SteamStatus> Statuses(VdfObject r)
+        {
+            var result = new Dictionary<Game, SteamStatus>();
+            foreach (var g in games) result[g] = StatusOf(g, r, gridDir);
+            return result;
+        }
     }
 }

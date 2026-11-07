@@ -11,6 +11,7 @@ public partial class App : Application
 {
     const string ShowEventName = @"Local\metGameHDR.Show";
     static Mutex? instance;
+    static EventWaitHandle? showEvent;
     HdrController? controller;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -22,15 +23,21 @@ public partial class App : Application
             Shutdown(0);
             return;
         }
+        showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
         instance = new Mutex(false, @"Local\metGameHDR", out var first);
         if (!first)
         {
-            using var show = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
-            show.Set();
+            showEvent.Set();
             Shutdown(0);
             return;
         }
-        StartTray(showWindow: !e.Args.Contains("--tray"));
+        try { StartTray(showWindow: !e.Args.Contains("--tray")); }
+        catch (Exception ex)
+        {
+            Log.Write($"Startup: {ex}");
+            MessageBox.Show(ex.Message, "metGameHDR", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -47,11 +54,6 @@ public partial class App : Application
 
     void StartTray(bool showWindow)
     {
-        DispatcherUnhandledException += (_, a) =>
-        {
-            Log.Write($"Unhandled: {a.Exception}");
-            a.Handled = true;
-        };
         SessionEnding += (_, _) => FinishHdr();
 
         var settings = Settings.Load(AppPaths.SettingsFile);
@@ -61,8 +63,7 @@ public partial class App : Application
         var controller = this.controller = new HdrController(hdr, () => settings.TurnOffHdrOnExit, TimeSpan.FromSeconds(3));
         var window = new MainWindow(settings, lib, watcher.Reset);
 
-        var show = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
-        new Thread(() => { while (show.WaitOne()) Dispatcher.InvokeAsync(() => window.ShowFromTray("second instance")); }) { IsBackground = true }.Start();
+        new Thread(() => { while (showEvent!.WaitOne()) Dispatcher.InvokeAsync(() => window.ShowFromTray("second instance")); }) { IsBackground = true }.Start();
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         string? lastError = null;
@@ -91,6 +92,11 @@ public partial class App : Application
         };
         timer.Start();
         if (showWindow) window.Show();
+        DispatcherUnhandledException += (_, a) =>
+        {
+            Log.Write($"Unhandled: {a.Exception}");
+            a.Handled = true;
+        };
     }
 
     static void RunHdrCommand(string command)
