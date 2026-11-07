@@ -86,37 +86,58 @@ public static class IniEditor
             if (!string.Equals(current, section, StringComparison.OrdinalIgnoreCase)) continue;
             sectionFound = true;
             if (trimmed.Length > 0) lastNonBlank = i;
-            if (found < 0 && !isHeader && KeyOf(trimmed) is { } k
-                && string.Equals(k, key.Trim(), StringComparison.OrdinalIgnoreCase)) found = i;
+            if (found < 0 && !isHeader && KeyMatches(trimmed, key)) found = i;
         }
         return found;
     }
 
-    private static string? KeyOf(string trimmed)
+    // With '=': key is the text before it. Without: the value is the last token (a quoted string
+    // is one token) and the key part is everything before it.
+    private static bool Parse(string content, out string key, out int valueStart, out bool hasEq)
     {
-        if (trimmed.Length == 0 || NonKeyPrefixes.Contains(trimmed[0])) return null;
-        var sep = trimmed.IndexOf('=');
-        if (sep < 0) sep = trimmed.AsSpan().IndexOfAny(" \t");
-        return (sep < 0 ? trimmed : trimmed[..sep]).Trim();
+        key = "";
+        valueStart = content.Length;
+        hasEq = false;
+        var start = content.Length - content.TrimStart().Length;
+        if (start == content.Length || NonKeyPrefixes.Contains(content[start])) return false;
+
+        var quote = content.IndexOf('"', start);
+        var eq = content.IndexOf('=', start, (quote < 0 ? content.Length : quote) - start);
+        if (eq >= 0)
+        {
+            hasEq = true;
+            key = content[start..eq].Trim();
+            valueStart = eq + 1;
+            while (valueStart < content.Length && char.IsWhiteSpace(content[valueStart])) valueStart++;
+            return true;
+        }
+
+        var end = content.TrimEnd().Length;
+        var tokenStart = end - 1;
+        var open = content[tokenStart] == '"' && tokenStart > start ? content.LastIndexOf('"', tokenStart - 1) : -1;
+        if (open > start) tokenStart = open;
+        else while (tokenStart > start && !char.IsWhiteSpace(content[tokenStart - 1])) tokenStart--;
+
+        if (tokenStart <= start) { key = content[start..end]; return true; }
+        key = content[start..tokenStart].Trim();
+        valueStart = tokenStart;
+        return true;
     }
 
-    // Start of the replaceable remainder: after the separator and the whitespace following it.
+    private static bool KeyMatches(string content, string key)
+    {
+        if (!Parse(content, out var k, out _, out var hasEq)) return false;
+        key = key.Trim();
+        if (string.Equals(k, key, StringComparison.OrdinalIgnoreCase)) return true;
+        if (hasEq) return false;
+        var lastWord = k[(k.LastIndexOfAny([' ', '\t']) + 1)..];
+        return string.Equals(lastWord, key, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static int ValueStart(string content)
     {
-        var start = content.Length - content.TrimStart().Length;
-        var eq = content.IndexOf('=', start);
-        var ws = content.AsSpan(start).IndexOfAny(" \t");
-        int i;
-        if (eq >= 0 && (ws < 0 || eq <= start + ws)) i = eq + 1;
-        else if (ws >= 0)
-        {
-            i = start + ws;
-            while (i < content.Length && char.IsWhiteSpace(content[i])) i++;
-            if (i < content.Length && content[i] == '=') i++;
-        }
-        else return content.Length;
-        while (i < content.Length && char.IsWhiteSpace(content[i])) i++;
-        return i;
+        Parse(content, out _, out var v, out _);
+        return v;
     }
 
     private static string Content(string line) => line.TrimEnd('\r', '\n');

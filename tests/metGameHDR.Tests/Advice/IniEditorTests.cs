@@ -18,7 +18,7 @@ public class IniEditorTests
     [Fact]
     public void Apply_SpaceSeparator_KeepsSeparator()
     {
-        var result = IniEditor.Apply("seta r_shadows \"1\"\nseta r_fov \"90\"\n", E(null, "seta", "r_shadows \"0\""));
+        var result = IniEditor.Apply("seta r_shadows \"1\"\nseta r_fov \"90\"\n", E(null, "r_shadows", "\"0\""));
         Assert.Equal("seta r_shadows \"0\"\nseta r_fov \"90\"\n", result);
         result = IniEditor.Apply("r_shadows  \"1\"\n", E(null, "r_shadows", "\"0\""));
         Assert.Equal("r_shadows  \"0\"\n", result);
@@ -80,5 +80,7 @@ public class IniEditorTests
         Assert.Equal("first", IniEditor.CurrentValue(text, "s", "K"));
         Assert.Equal("0", IniEditor.CurrentValue(text, null, "a"));
         Assert.Null(IniEditor.CurrentValue(text, "S", "zzz"));
+        Assert.Equal("\"1\"", IniEditor.CurrentValue("seta r_shadows \"1\"\n", null, "r_shadows"));
+        Assert.Equal("\"a b\"", IniEditor.CurrentValue("seta r_x \"a b\"\n", null, "r_x"));
     }
 }
