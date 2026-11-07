@@ -98,9 +98,12 @@ public partial class MainWindow : Window
 
     void UpdateButtons()
     {
-        RefreshButton.IsEnabled = !scanning;
-        AddAppButton.IsEnabled = !scanning;
-        AddToSteamButton.IsEnabled = !scanning && !addingToSteam;
+        var canRescan = !scanning && !addingToSteam;
+        RefreshButton.IsEnabled = canRescan;
+        AddAppButton.IsEnabled = canRescan;
+        AddRootButton.IsEnabled = canRescan;
+        RemoveRootButton.IsEnabled = canRescan;
+        AddToSteamButton.IsEnabled = canRescan;
     }
 
     async Task RescanAsync()
@@ -197,6 +200,7 @@ public partial class MainWindow : Window
         settings.FolderRoots.Add(dialog.SelectedPath);
         RootsList.Items.Refresh();
         SaveSettings();
+        _ = RescanAsync();
     }
 
     void RemoveRoot_Click(object sender, RoutedEventArgs e)
@@ -205,6 +209,7 @@ public partial class MainWindow : Window
         settings.FolderRoots.Remove(root);
         RootsList.Items.Refresh();
         SaveSettings();
+        _ = RescanAsync();
     }
 
     void Autostart_Click(object sender, RoutedEventArgs e)
