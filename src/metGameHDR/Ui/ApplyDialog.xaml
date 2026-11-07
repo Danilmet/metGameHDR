@@ -7,10 +7,13 @@
     <Grid Margin="14" Grid.IsSharedSizeScope="True">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <Grid Margin="8,0,8,6">
+        <TextBlock x:Name="PathText" Margin="8,0,8,8" Foreground="{DynamicResource TextSecondary}"
+                   TextTrimming="CharacterEllipsis"/>
+        <Grid Grid.Row="1" Margin="8,0,8,6">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="2*" SharedSizeGroup="Key"/>
                 <ColumnDefinition Width="*" SharedSizeGroup="Current"/>
@@ -20,7 +23,7 @@
             <TextBlock Grid.Column="1" Text="Сейчас" Foreground="{DynamicResource TextSecondary}"/>
             <TextBlock Grid.Column="2" Text="Станет" Foreground="{DynamicResource TextSecondary}"/>
         </Grid>
-        <ListBox x:Name="ItemsList" Grid.Row="1" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+        <ListBox x:Name="ItemsList" Grid.Row="2" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.ItemTemplate>
                 <DataTemplate>
                     <Grid>
@@ -37,7 +40,7 @@
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="Применить" Style="{StaticResource AccentButton}" IsDefault="True" Click="Apply_Click"/>
             <Button Content="Отмена" Margin="8,0,0,0" IsCancel="True"/>
         </StackPanel>

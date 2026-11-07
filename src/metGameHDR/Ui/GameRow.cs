@@ -172,6 +172,7 @@ public sealed class GameRow : INotifyPropertyChanged
     public bool HasAdvice => latest != null;
     public string AdviceSummary => latest?.Result.Summary ?? "";
     public IReadOnlyList<SettingAdvice> AdviceItems => latest?.Result.Settings ?? [];
+    public string AdviceNotes => latest?.Result.Notes ?? "";
     public string AdviceAt => latest is null ? "" : latest.At.ToLocalTime().ToString("dd.MM HH:mm");
     public bool CanApply => canApply;
     public bool HasKey => hasKey();
@@ -203,13 +204,26 @@ public sealed class GameRow : INotifyPropertyChanged
     {
         latest = lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.Advice : null;
         canApply = false;
-        if (latest?.Result.Config?.Path is { } path)
-        {
-            try { canApply = Advisor.IsCandidate(Game, roots, path) && File.Exists(path); }
-            catch (ArgumentException) { }
-        }
-        foreach (var name in new[] { nameof(Latest), nameof(HasAdvice), nameof(AdviceSummary), nameof(AdviceItems), nameof(AdviceAt), nameof(CanApply), nameof(GoalFps), nameof(GoalPriority) })
+        foreach (var name in new[] { nameof(Latest), nameof(HasAdvice), nameof(AdviceSummary), nameof(AdviceItems), nameof(AdviceNotes), nameof(AdviceAt), nameof(CanApply), nameof(GoalFps), nameof(GoalPriority) })
             Notify(name);
+    }
+
+    // Reads config files, so it runs when the row is selected or its advice changes, not for every row at startup.
+    public void RefreshCanApply()
+    {
+        canApply = false;
+        if (latest?.Result.Config is { Edits.Count: > 0 } config)
+        {
+            try
+            {
+                canApply = Advisor.EditsValid(config)
+                    && Advisor.IsCandidate(Advisor.EffectiveGame(lib, Game), roots, config.Path)
+                    && File.Exists(config.Path)
+                    && Advisor.LooksLikeIni(File.ReadAllBytes(config.Path));
+            }
+            catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException) { }
+        }
+        Notify(nameof(CanApply));
     }
 
     public void NotifyDefaultsChanged()

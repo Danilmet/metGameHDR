@@ -16,7 +16,7 @@ public sealed class Advisor(Func<string?> apiKey, Library lib, string libraryPat
         var key = apiKey();
         if (string.IsNullOrWhiteSpace(key)) throw new AdviceException("Не задан ключ API");
         var hw = hardware();
-        var effective = game with { Name = lib.SearchNameOf(game), MainExe = lib.MainExeOf(game) };
+        var effective = EffectiveGame(lib, game);
         var candidates = ConfigFinder.Find(effective, roots);
         var result = await new ClaudeClient(http, key).AskAsync(new AdviceRequest(effective, hw, goal, candidates), ct);
         var advice = new Advice(result, DateTime.UtcNow);
@@ -26,6 +26,9 @@ public sealed class Advisor(Func<string?> apiKey, Library lib, string libraryPat
         lib.Save(libraryPath);
         return advice;
     }
+
+    public static Game EffectiveGame(Library lib, Game game) =>
+        game with { Name = lib.SearchNameOf(game), MainExe = lib.MainExeOf(game) };
 
     public static bool IsCandidate(Game game, FinderRoots roots, string path)
     {
@@ -63,7 +66,7 @@ public sealed class Advisor(Func<string?> apiKey, Library lib, string libraryPat
         var config = advice.Result.Config;
         if (config is null) return ApplyOutcome.NoConfig;
         if (!EditsValid(config)) return ApplyOutcome.BadEdit;
-        if (!IsCandidate(game, roots, config.Path)) return ApplyOutcome.PathNotCandidate;
+        if (!IsCandidate(EffectiveGame(lib, game), roots, config.Path)) return ApplyOutcome.PathNotCandidate;
         var path = Path.GetFullPath(config.Path);
         if (!File.Exists(path)) return ApplyOutcome.FileMissing;
         if (isRunning(game)) return ApplyOutcome.GameRunning;

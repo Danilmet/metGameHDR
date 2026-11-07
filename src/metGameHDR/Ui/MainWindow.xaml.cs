@@ -325,13 +325,20 @@ public partial class MainWindow : Window
         try
         {
             await advisor.AskAsync(row.Game, row.Goal, CancellationToken.None);
-            row.LoadAdvice();
-            row.AdviceStatus = "";
+            // RebuildRows may have replaced the row during the request.
+            if (CurrentRow(row) is { } current)
+            {
+                current.LoadAdvice();
+                current.RefreshCanApply();
+                current.AdviceStatus = "";
+            }
         }
-        catch (Exception ex) when (ex is AdviceException or HttpRequestException or TaskCanceledException)
+        catch (Exception ex)
         {
             Log.Write($"Advice: {ex}");
-            row.AdviceStatus = ex is TaskCanceledException ? "Время ожидания ответа истекло" : ex.Message;
+            var message = ex is TaskCanceledException ? "Время ожидания ответа истекло" : ex.Message;
+            row.AdviceStatus = message;
+            if (CurrentRow(row) is { } current) current.AdviceStatus = message;
         }
         finally
         {
@@ -339,10 +346,16 @@ public partial class MainWindow : Window
         }
     }
 
+    GameRow? CurrentRow(GameRow row) =>
+        rows.FirstOrDefault(r => string.Equals(r.Game.InstallDir, row.Game.InstallDir, StringComparison.OrdinalIgnoreCase));
+
+    void DetailsPanel_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e) =>
+        (e.NewValue as GameRow)?.RefreshCanApply();
+
     void Apply_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is not GameRow { Latest: { } advice } row) return;
-        var dialog = new ApplyDialog(advisor.Preview(row.Game, advice)) { Owner = this };
+        if ((sender as FrameworkElement)?.DataContext is not GameRow { Latest: { Result.Config: { } config } advice } row) return;
+        var dialog = new ApplyDialog(config.Path, advisor.Preview(row.Game, advice)) { Owner = this };
         if (dialog.ShowDialog() != true) return;
         try
         {
@@ -352,6 +365,8 @@ public partial class MainWindow : Window
                 ApplyOutcome.GameRunning => "Закройте игру и повторите",
                 ApplyOutcome.FileMissing => "Файл не найден",
                 ApplyOutcome.PathNotCandidate => "Файл не относится к настройкам этой игры",
+                ApplyOutcome.NotIni => "Файл не в формате INI",
+                ApplyOutcome.BadEdit => "Некорректные правки в ответе",
                 _ => "Нет файла для записи",
             };
         }
@@ -361,6 +376,7 @@ public partial class MainWindow : Window
             row.AdviceStatus = ex.Message;
         }
         row.LoadAdvice();
+        row.RefreshCanApply();
     }
 
     void AddRoot_Click(object sender, RoutedEventArgs e)

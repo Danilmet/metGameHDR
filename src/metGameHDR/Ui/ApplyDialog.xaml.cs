@@ -7,11 +7,13 @@ public partial class ApplyDialog : Window
 {
     sealed record Row(string Key, string Current, string New);
 
-    public ApplyDialog(IReadOnlyList<EditPreview> items)
+    public ApplyDialog(string path, IReadOnlyList<EditPreview> items)
     {
         InitializeComponent();
+        PathText.Text = path;
+        PathText.ToolTip = path;
         ItemsList.ItemsSource = items
-            .Select(i => new Row(i.Edit.Section is null ? i.Edit.Key : $"[{i.Edit.Section}] {i.Edit.Key}", i.Current ?? "—", i.Edit.Value))
+            .Select(i => new Row(i.Edit.Section is null ? i.Edit.Key : $"[{i.Edit.Section}] {i.Edit.Key}", i.Current ?? "нет", i.Edit.Value))
             .ToList();
     }
 
