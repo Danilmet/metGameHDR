@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Net.Http;
 using System.Windows;
+using System.Windows.Controls;
 using MetGameHDR.Scan;
 using MetGameHDR.Steam;
 using Forms = System.Windows.Forms;
@@ -17,6 +18,7 @@ public partial class MainWindow : Window
     readonly Library lib;
     readonly Action onLibraryChanged;
     readonly ObservableCollection<GameRow> rows = [];
+    readonly Covers covers = new(Http, AppPaths.CoversDir);
     bool scanning;
     bool addingToSteam;
 
@@ -52,6 +54,7 @@ public partial class MainWindow : Window
             SaveSettings();
             RebuildRows();
         };
+        Theme.Changed += ApplyBackdrop;
         IsVisibleChanged += (_, e) => Log.Write($"Window visible={e.NewValue}{Environment.NewLine}{Environment.StackTrace}");
 
         if (lib.Games.Count > 0) RebuildRows();
@@ -65,6 +68,18 @@ public partial class MainWindow : Window
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
         Activate();
     }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        ApplyBackdrop();
+    }
+
+    void ApplyBackdrop() =>
+        RootGrid.SetResourceReference(BackgroundProperty, Backdrop.TryApply(this, !Theme.IsLight()) ? "WindowBackground" : "WindowBackgroundSolid");
+
+    void GamesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        DetailsPanel.Visibility = GamesGrid.SelectedItems.Count == 1 ? Visibility.Visible : Visibility.Collapsed;
 
     protected override void OnClosing(CancelEventArgs e)
     {
@@ -96,6 +111,29 @@ public partial class MainWindow : Window
                 : (SteamStatus?)null;
             rows.Add(new GameRow(g, lib, status, onLibraryChanged));
         }
+        LoadCovers(steam, shortcuts, gridDir);
+    }
+
+    void LoadCovers(string? steam, VdfObject? shortcuts, string? gridDir)
+    {
+        var db = string.IsNullOrWhiteSpace(settings.SteamGridDbKey) ? null : new SteamGridDb(Http, settings.SteamGridDbKey);
+        foreach (var row in rows)
+        {
+            if (Covers.LocalPath(row.Game, steam, shortcuts, gridDir, AppPaths.CoversDir) is { } path
+                && Covers.LoadImage(path) is { } image)
+            {
+                row.SetCover(image);
+                continue;
+            }
+            row.Icon = Covers.ExeIcon(lib.MainExeOf(row.Game));
+            if (db != null) _ = FetchCoverAsync(row, db);
+        }
+    }
+
+    async Task FetchCoverAsync(GameRow row, SteamGridDb db)
+    {
+        if (await covers.FetchAsync(row.Game, lib.SearchNameOf(row.Game), db) is { } path && rows.Contains(row))
+            row.SetCover(Covers.LoadImage(path));
     }
 
     void UpdateButtons()
