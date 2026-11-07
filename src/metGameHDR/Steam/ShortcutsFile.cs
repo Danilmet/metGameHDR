@@ -49,7 +49,7 @@ public static class ShortcutsFile
             entry["Exe"] = exeQuoted;
             if (!matchedByDir) entry["StartDir"] = startDir;
             if (icon.Length > 0) entry["icon"] = icon;
-            entry["LaunchOptions"] = launchOptions;
+            if (launchOptions.Length > 0) entry["LaunchOptions"] = launchOptions;
             return entry;
         }
 

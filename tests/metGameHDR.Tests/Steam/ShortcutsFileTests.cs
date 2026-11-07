@@ -32,6 +32,8 @@ public class ShortcutsFileTests
         Assert.Equal("--processStart Discord.exe", e["LaunchOptions"]);
         ShortcutsFile.Upsert(root, "Discord", @"C:\D\Update.exe", @"C:\D", "", "-x");
         Assert.Equal("-x", e["LaunchOptions"]);
+        ShortcutsFile.Upsert(root, "Discord", @"C:\D\Update.exe", @"C:\D", "");
+        Assert.Equal("-x", e["LaunchOptions"]);
     }
 
     [Fact] public void Upsert_EmptyIconKeepsExistingIcon()
