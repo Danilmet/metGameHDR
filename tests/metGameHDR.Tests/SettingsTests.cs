@@ -1,0 +1,32 @@
+namespace MetGameHDR.Tests;
+
+public class SettingsTests
+{
+    [Fact]
+    public void Load_MissingFile_ReturnsDefaults()
+    {
+        var s = Settings.Load(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json"));
+        Assert.True(s.TurnOffHdrOnExit);
+        Assert.Empty(s.FolderRoots);
+        Assert.Null(s.SteamGridDbKey);
+    }
+
+    [Fact]
+    public void Save_Then_Load_Roundtrips()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var s = new Settings { FolderRoots = ["C:\\Games"], SteamGridDbKey = "k", Autostart = true };
+            s.Save(path);
+            var back = Settings.Load(path);
+            Assert.Equal(["C:\\Games"], back.FolderRoots);
+            Assert.Equal("k", back.SteamGridDbKey);
+            Assert.True(back.Autostart);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+}
