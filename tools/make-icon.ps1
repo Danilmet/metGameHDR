@@ -19,7 +19,7 @@ $path.AddArc($size - $d - 1, 0, $d, $d, 270, 90)
 $path.AddArc($size - $d - 1, $size - $d - 1, $d, $d, 0, 90)
 $path.AddArc(0, $size - $d - 1, $d, $d, 90, 90)
 $path.CloseFigure()
-$g.FillPath((New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 16, 32, 80))), $path)
+$g.FillPath((New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 0, 0, 0))), $path)
 
 $fmt = New-Object System.Drawing.StringFormat
 $fmt.Alignment = 'Center'
@@ -29,7 +29,7 @@ $g.DrawString('met', $small, [System.Drawing.Brushes]::White, (New-Object System
 $font = New-Object System.Drawing.Font 'Segoe UI', 84, ([System.Drawing.FontStyle]::Bold), ([System.Drawing.GraphicsUnit]::Pixel)
 $g.DrawString('HDR', $font, [System.Drawing.Brushes]::White, (New-Object System.Drawing.RectangleF 0, 76, $size, 100), $fmt)
 
-$bar = New-Object System.Drawing.Rectangle 48, 182, 160, 14
+$bar = New-Object System.Drawing.Rectangle 48, 182, 160, 8
 $grad = New-Object System.Drawing.Drawing2D.LinearGradientBrush $bar, ([System.Drawing.Color]::Red), ([System.Drawing.Color]::Blue), 0.0
 $blend = New-Object System.Drawing.Drawing2D.ColorBlend 3
 $blend.Colors = @([System.Drawing.Color]::Red, [System.Drawing.Color]::Lime, [System.Drawing.Color]::Blue)
