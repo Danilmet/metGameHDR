@@ -301,6 +301,18 @@ public class AdvisorTests
     }
 
     [Fact]
+    public void Apply_UpdatesStoredCurrentValues()
+    {
+        using var e = new Env();
+        var advice = e.AdviceFor();
+        e.Lib.For(e.Game).Advice = advice;
+
+        Assert.Equal(ApplyOutcome.Applied, e.Advisor().Apply(e.Game, advice));
+
+        Assert.Equal("Rec", Library.Load(e.LibPath).For(e.Game).Advice!.Result.Settings[0].Current);
+    }
+
+    [Fact]
     public void Apply_PathWithDifferentCaseAndSlashes_StillApplies()
     {
         using var e = new Env();

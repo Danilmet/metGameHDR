@@ -117,6 +117,10 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
         File.WriteAllBytes(tmp, IniEditor.ApplyBytes(original, edits));
         try { File.Move(tmp, path, overwrite: true); }
         catch { File.Delete(tmp); throw; }
+        // The file now holds the recommended values, so the stored advice shows them as current.
+        var settings = advice.Result.Settings.Select(x => x.Key != null ? x with { Current = x.Recommended } : x).ToList();
+        lib.For(game).Advice = advice with { Result = advice.Result with { Settings = settings } };
+        lib.Save(libraryPath);
         return ApplyOutcome.Applied;
     }
 

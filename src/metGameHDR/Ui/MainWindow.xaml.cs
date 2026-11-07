@@ -473,11 +473,9 @@ public partial class MainWindow : Window
     void Apply_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is not GameRow { Latest: { } advice } row) return;
-        var applied = false;
         try
         {
             var outcome = advisor.Apply(row.Game, advice);
-            applied = outcome == ApplyOutcome.Applied;
             row.ApplyStatus = outcome switch
             {
                 ApplyOutcome.Applied => "Применено",
@@ -495,7 +493,6 @@ public partial class MainWindow : Window
         }
         row.LoadAdvice();
         row.RefreshCanApply();
-        if (applied) row.MarkApplied();
         row.RefreshConfig();
     }
 

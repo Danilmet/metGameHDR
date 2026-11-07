@@ -268,12 +268,6 @@ public sealed class GameRow : INotifyPropertyChanged
         Notify(nameof(AdviceRows));
     }
 
-    public void MarkApplied()
-    {
-        adviceRows = adviceRows.Select(r => r.IsConfig ? r with { Current = r.Recommended } : r).ToList();
-        Notify(nameof(AdviceRows));
-    }
-
     // Touches the file system, so it runs when the page opens and after locate/ask/apply.
     public void RefreshConfig()
     {
