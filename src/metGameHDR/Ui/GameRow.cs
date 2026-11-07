@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Windows.Media;
 using MetGameHDR.Scan;
 using MetGameHDR.Steam;
 
@@ -9,6 +10,8 @@ public sealed class GameRow : INotifyPropertyChanged
     readonly Library lib;
     readonly Action onHdrChanged;
     SteamStatus? steamStatus;
+    ImageSource? cover;
+    ImageSource? icon;
 
     public GameRow(Game game, Library lib, SteamStatus? steamStatus, Action onHdrChanged)
     {
@@ -82,6 +85,28 @@ public sealed class GameRow : INotifyPropertyChanged
         Steam.SteamStatus.NoArtwork => "без обложки",
         _ => "",
     };
+
+    public ImageSource? Cover
+    {
+        get => cover;
+        set
+        {
+            cover = value;
+            PropertyChanged?.Invoke(this, new(nameof(Cover)));
+        }
+    }
+
+    public ImageSource? Icon
+    {
+        get => icon;
+        set
+        {
+            icon = value;
+            PropertyChanged?.Invoke(this, new(nameof(Icon)));
+        }
+    }
+
+    public void SetCover(ImageSource? cover) => Cover = cover;
 
     void Save() => lib.Save(AppPaths.LibraryFile);
 }

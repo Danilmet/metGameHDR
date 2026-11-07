@@ -1,14 +1,23 @@
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using MetGameHDR.Scan;
 using MetGameHDR.Steam;
 
 namespace MetGameHDR.Ui;
 
-public static class Covers
+public sealed class Covers(HttpClient http, string cacheDir)
 {
     public static string? LocalPath(Game game, string? steamPath, VdfObject? shortcuts, string? gridDir, string cacheDir)
     {
@@ -38,5 +47,87 @@ public static class Covers
         if (safe.Length > 60) safe = safe[..60];
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(installDir.ToUpperInvariant()));
         return safe.ToLowerInvariant() + "-" + Convert.ToHexString(hash, 0, 4).ToLowerInvariant();
+    }
+
+    static readonly ConcurrentDictionary<string, ImageSource> images = new(StringComparer.OrdinalIgnoreCase);
+    readonly Dictionary<string, Task<string?>> fetches = new(StringComparer.OrdinalIgnoreCase);
+    readonly SemaphoreSlim gate = new(3);
+
+    public Task<string?> FetchAsync(Game game, string searchName, SteamGridDb db)
+    {
+        lock (fetches)
+        {
+            // Finished tasks stay in the map, so a game that failed is not re-queried in this process.
+            if (!fetches.TryGetValue(game.InstallDir, out var task))
+                fetches[game.InstallDir] = task = Task.Run(() => DownloadAsync(game, searchName, db));
+            return task;
+        }
+    }
+
+    async Task<string?> DownloadAsync(Game game, string searchName, SteamGridDb db)
+    {
+        await gate.WaitAsync();
+        try
+        {
+            if (await db.SearchAsync(searchName) is not { } id) return null;
+            if (await db.BestImageUrlAsync("grids", id, "600x900") is not { } url) return null;
+            var ext = Path.GetExtension(new Uri(url).AbsolutePath);
+            if (ext.Length == 0) ext = ".png";
+            Directory.CreateDirectory(cacheDir);
+            var path = Path.Combine(cacheDir, CacheFileName(game.InstallDir) + ext);
+            // The temp name must not start with CacheFileName, or LocalPath's "<name>.*" lookup would pick up a leftover partial file.
+            var tmp = Path.Combine(cacheDir, "~" + Path.GetFileName(path));
+            await File.WriteAllBytesAsync(tmp, await http.GetByteArrayAsync(url));
+            File.Move(tmp, path, overwrite: true);
+            return path;
+        }
+        catch (Exception e)
+        {
+            Log.Write($"Cover {game.Name}: {e.Message}");
+            return null;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public static ImageSource? LoadImage(string path)
+    {
+        if (images.TryGetValue(path, out var cached)) return cached;
+        try
+        {
+            // StreamSource, not UriSource: on a decode failure UriSource leaves the file handle open.
+            using var stream = File.OpenRead(path);
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.StreamSource = stream;
+            bmp.DecodePixelWidth = 300;
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.EndInit();
+            bmp.Freeze();
+            return images[path] = bmp;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    public static ImageSource? ExeIcon(string? exePath)
+    {
+        if (exePath is null || !File.Exists(exePath)) return null;
+        try
+        {
+            using var icon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+            if (icon is null) return null;
+            var src = Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+            src.Freeze();
+            return src;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 }
