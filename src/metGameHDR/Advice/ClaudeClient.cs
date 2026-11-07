@@ -1,0 +1,118 @@
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using MetGameHDR.Scan;
+
+namespace MetGameHDR.Advice;
+
+public sealed record AdviceRequest(Game Game, HardwareInfo Hardware, GraphicsGoal Goal, IReadOnlyList<ConfigCandidate> Candidates);
+
+public sealed class AdviceException(string message) : Exception(message);
+
+public sealed class ClaudeClient(HttpClient http, string apiKey)
+{
+    public const string Model = "claude-opus-5-5";
+    const string Url = "https://api.anthropic.com/v1/messages";
+
+    const string SystemPrompt = """
+        Ты эксперт по оптимизации графических настроек ПК-игр. Тебе дают игру, железо пользователя, цель (кадры в секунду и приоритет: картинка, баланс или отзывчивость) и содержимое найденных файлов настроек игры.
+        Правила:
+        1. Найди свежие материалы по оптимизации именно этой игры (статьи, тесты, форумы) и опирайся на них и на известное поведение движка.
+        2. В settings перечисли настройки так, как они называются в меню игры, со значением и причиной в одну фразу. Разрешение и апскейлер указывай под монитор пользователя. Цель по кадрам — для типичных сцен, с запасом ~10%.
+        3. config заполняй только если один из присланных файлов действительно хранит графические настройки: path — точно как прислан; в edits используй только ключи, которые видишь в файле или которые документированы для этого движка. Ключи не выдумывай. Если подходящего файла нет — config: null.
+        4. Пиши по-русски, кратко. summary — 2–3 предложения о том, что упирается в железо и чем пожертвовали.
+        """;
+
+    const string Schema = """
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["summary", "settings", "config", "notes"],
+          "properties": {
+            "summary": { "type": "string" },
+            "settings": { "type": "array", "items": { "type": "object", "additionalProperties": false,
+              "required": ["name", "value", "reason"],
+              "properties": { "name": {"type":"string"}, "value": {"type":"string"}, "reason": {"type":"string"} } } },
+            "config": { "anyOf": [ { "type": "null" }, { "type": "object", "additionalProperties": false,
+              "required": ["path", "edits"],
+              "properties": { "path": {"type":"string"}, "edits": { "type": "array", "items": { "type": "object", "additionalProperties": false,
+                "required": ["section", "key", "value"],
+                "properties": { "section": { "type": ["string","null"] }, "key": {"type":"string"}, "value": {"type":"string"} } } } } } ] },
+            "notes": { "type": ["string", "null"] }
+          }
+        }
+        """;
+
+    static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() },
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
+    public async Task<AdviceResult> AskAsync(AdviceRequest request, CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Post, Url)
+        {
+            Content = new StringContent(BuildBody(request), Encoding.UTF8, "application/json"),
+        };
+        req.Headers.Add("x-api-key", apiKey);
+        req.Headers.Add("anthropic-version", "2026-10-21");
+        req.Headers.Add("anthropic-beta", "server-side-fallback-2026-07-01");
+
+        using var resp = await http.SendAsync(req, ct);
+        var text = await resp.Content.ReadAsStringAsync(ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var code = (int)resp.StatusCode;
+            throw new AdviceException(code is 429 or 529
+                ? "Сервис перегружен, повторите позже"
+                : $"Ошибка API {code}: {(text.Length > 200 ? text[..200] : text)}");
+        }
+        return Parse(text);
+    }
+
+    internal static string BuildBody(AdviceRequest request)
+    {
+        var user = new
+        {
+            game = new { name = request.Game.Name, source = request.Game.Source, installDir = request.Game.InstallDir, exe = request.Game.MainExe },
+            hardware = request.Hardware,
+            goal = request.Goal,
+            candidates = request.Candidates,
+        };
+        using var schema = JsonDocument.Parse(Schema);
+        return JsonSerializer.Serialize(new
+        {
+            model = Model,
+            max_tokens = 8000,
+            system = SystemPrompt,
+            tools = new[] { new { type = "web_search_20260209", name = "web_search", max_uses = 5 } },
+            fallbacks = "default",
+            output_config = new { format = new { type = "json_schema", schema = schema.RootElement } },
+            messages = new[] { new { role = "user", content = JsonSerializer.Serialize(user, Json) } },
+        }, Json);
+    }
+
+    internal static AdviceResult Parse(string responseJson)
+    {
+        const string garbled = "Модель вернула неразборчивый ответ";
+        try
+        {
+            using var doc = JsonDocument.Parse(responseJson);
+            var root = doc.RootElement;
+            var stop = root.TryGetProperty("stop_reason", out var s) ? s.GetString() : null;
+            if (stop == "refusal") throw new AdviceException("Модель отказалась отвечать");
+            if (stop == "max_tokens") throw new AdviceException("Ответ оборвался, повторите");
+
+            string? last = null;
+            foreach (var block in root.GetProperty("content").EnumerateArray())
+                if (block.GetProperty("type").GetString() == "text")
+                    last = block.GetProperty("text").GetString();
+            return (last is null ? null : JsonSerializer.Deserialize<AdviceResult>(last, Json)) ?? throw new AdviceException(garbled);
+        }
+        catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException)
+        {
+            throw new AdviceException(garbled);
+        }
+    }
+}
