@@ -12,16 +12,16 @@ public sealed class Tray : IDisposable
     readonly Drawing.Icon onIcon;
     bool? hdr;
 
-    public Tray(Action open, Action exit)
+    public Tray(Action<string> open, Action exit)
     {
         offIcon = Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!)!;
         onIcon = WithGreenDot(offIcon);
         var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add("Открыть", null, (_, _) => open());
+        menu.Items.Add("Открыть", null, (_, _) => open("tray menu"));
         menu.Items.Add(pause);
         menu.Items.Add("Выход", null, (_, _) => exit());
         notifyIcon = new Forms.NotifyIcon { ContextMenuStrip = menu };
-        notifyIcon.DoubleClick += (_, _) => open();
+        notifyIcon.DoubleClick += (_, _) => open("tray double-click");
         SetHdr(false);
         notifyIcon.Visible = true;
     }

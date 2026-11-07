@@ -52,13 +52,15 @@ public partial class MainWindow : Window
             SaveSettings();
             RebuildRows();
         };
+        IsVisibleChanged += (_, e) => Log.Write($"Window visible={e.NewValue}{Environment.NewLine}{Environment.StackTrace}");
 
         if (lib.Games.Count > 0) RebuildRows();
         _ = RescanAsync();
     }
 
-    public void ShowFromTray()
+    public void ShowFromTray(string source)
     {
+        Log.Write($"ShowFromTray: {source}");
         Show();
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
         Activate();

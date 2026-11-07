@@ -62,7 +62,7 @@ public partial class App : Application
         var window = new MainWindow(settings, lib, watcher.Reset);
 
         var show = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
-        new Thread(() => { while (show.WaitOne()) Dispatcher.InvokeAsync(window.ShowFromTray); }) { IsBackground = true }.Start();
+        new Thread(() => { while (show.WaitOne()) Dispatcher.InvokeAsync(() => window.ShowFromTray("second instance")); }) { IsBackground = true }.Start();
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         string? lastError = null;
