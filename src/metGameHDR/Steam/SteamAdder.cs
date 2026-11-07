@@ -39,7 +39,7 @@ public static class SteamAdder
             {
                 var exe = lib.MainExeOf(g);
                 if (exe is null) { log($"{g.Name}: нет exe"); continue; }
-                var entry = ShortcutsFile.Upsert(root, g.Name, exe, g.InstallDir, "");
+                var entry = ShortcutsFile.Upsert(root, g.Name, exe, g.InstallDir, "", g.LaunchOptions ?? "");
                 var appId = ShortcutsFile.AppIdOf(entry);
                 try
                 {

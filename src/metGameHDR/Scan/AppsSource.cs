@@ -1,20 +1,35 @@
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace MetGameHDR.Scan;
 
-public sealed class AppsSource(IEnumerable<string> exePaths) : IGameSource
+public sealed class AppsSource(IEnumerable<string> paths) : IGameSource
 {
     public GameSource Source => GameSource.App;
 
-    public IEnumerable<Game> Scan()
+    public IEnumerable<Game> Scan() => paths.Select(Resolve).OfType<Game>();
+
+    public static Game? Resolve(string path)
     {
-        foreach (var exe in exePaths)
+        if (!File.Exists(path)) return null;
+        if (!path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
         {
-            if (!File.Exists(exe)) continue;
-            var product = FileVersionInfo.GetVersionInfo(exe).ProductName;
-            var name = string.IsNullOrWhiteSpace(product) ? Path.GetFileNameWithoutExtension(exe) : product;
-            yield return new Game(name, Path.GetDirectoryName(exe)!, GameSource.App, exe);
+            var product = FileVersionInfo.GetVersionInfo(path).ProductName;
+            var name = string.IsNullOrWhiteSpace(product) ? Path.GetFileNameWithoutExtension(path) : product;
+            return new Game(name, Path.GetDirectoryName(path)!, GameSource.App, path);
         }
+
+        string target, args;
+        try
+        {
+            dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
+            var shortcut = shell.CreateShortcut(path);
+            target = (string)shortcut.TargetPath;
+            args = (string)shortcut.Arguments;
+        }
+        catch (COMException) { return null; }
+        if (!target.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || !File.Exists(target)) return null;
+        return new Game(Path.GetFileNameWithoutExtension(path), Path.GetDirectoryName(target)!, GameSource.App, target, args);
     }
 }

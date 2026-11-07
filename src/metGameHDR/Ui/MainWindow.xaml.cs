@@ -143,12 +143,7 @@ public partial class MainWindow : Window
         try
         {
             var path = dialog.FileName;
-            if (path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
-            {
-                dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
-                path = (string)shell.CreateShortcut(path).TargetPath;
-            }
-            if (!path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || !File.Exists(path))
+            if (AppsSource.Resolve(path) is null)
             {
                 ShowError($"Ярлык не указывает на exe: {path}");
                 return;

@@ -25,6 +25,15 @@ public class ShortcutsFileTests
         Assert.Single((VdfObject)root["shortcuts"]!);
     }
 
+    [Fact] public void Upsert_WritesLaunchOptionsOnInsertAndUpdate()
+    {
+        var root = ShortcutsFile.Load(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".vdf"));
+        var e = ShortcutsFile.Upsert(root, "Discord", @"C:\D\Update.exe", @"C:\D", "", "--processStart Discord.exe");
+        Assert.Equal("--processStart Discord.exe", e["LaunchOptions"]);
+        ShortcutsFile.Upsert(root, "Discord", @"C:\D\Update.exe", @"C:\D", "", "-x");
+        Assert.Equal("-x", e["LaunchOptions"]);
+    }
+
     [Fact] public void Save_WritesBackupAndAtomically()
     {
         var path = Path.GetTempFileName(); File.WriteAllBytes(path, BinaryVdfTests.Fixture());

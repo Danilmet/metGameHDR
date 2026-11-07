@@ -36,7 +36,7 @@ public static class ShortcutsFile
             ? unchecked((uint)id)
             : ShortcutAppId.Compute(entry["Exe"] as string ?? "", entry["AppName"] as string ?? "");
 
-    public static VdfObject Upsert(VdfObject root, string appName, string exePath, string startDir, string icon)
+    public static VdfObject Upsert(VdfObject root, string appName, string exePath, string startDir, string icon, string launchOptions = "")
     {
         var exeQuoted = "\"" + exePath + "\"";
         var entry = Find(root, startDir);
@@ -49,6 +49,7 @@ public static class ShortcutsFile
             entry["Exe"] = exeQuoted;
             if (!matchedByDir) entry["StartDir"] = startDir;
             entry["icon"] = icon;
+            entry["LaunchOptions"] = launchOptions;
             return entry;
         }
 
@@ -66,7 +67,7 @@ public static class ShortcutsFile
             new("StartDir", startDir),
             new("icon", icon),
             new("ShortcutPath", ""),
-            new("LaunchOptions", ""),
+            new("LaunchOptions", launchOptions),
             new("IsHidden", 0),
             new("AllowDesktopConfig", 1),
             new("AllowOverlay", 1),
