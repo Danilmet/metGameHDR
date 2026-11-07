@@ -237,7 +237,7 @@
                                        Foreground="{DynamicResource TextSecondary}"/>
                         </StackPanel>
 
-                                                <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                        <StackPanel Grid.Row="2" Margin="0,10,0,0">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{Binding ConfigText, Mode=OneWay}" MaxWidth="620" TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"
@@ -245,9 +245,8 @@
                                 <Button Content="Найти заново" Margin="10,0,0,0" VerticalAlignment="Center" Style="{StaticResource LinkButton}"
                                         Click="Locate_Click" IsEnabled="{Binding CanLocate}"/>
                             </StackPanel>
-                            <TextBlock Text="{Binding ConfigDetail, Mode=OneWay}" MaxWidth="620" HorizontalAlignment="Left" FontSize="12"
-                                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondary}"
-                                       ToolTip="{Binding ConfigDetail, Mode=OneWay}">
+                            <TextBlock Text="{Binding ConfigDetail, Mode=OneWay}" MaxWidth="900" HorizontalAlignment="Left" FontSize="12"
+                                       TextWrapping="Wrap" Foreground="{DynamicResource TextSecondary}">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
                                         <Style.Triggers>
