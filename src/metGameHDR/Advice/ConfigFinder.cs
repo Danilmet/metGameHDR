@@ -19,7 +19,7 @@ public static class ConfigFinder
     public const int MaxFiles = 3, MaxTotalBytes = 100 * 1024, MaxRootFileBytes = 64 * 1024, MaxFileBytes = 1024 * 1024;
 
     private static readonly string[] Keywords = ["settings", "config", "video", "graphics", "user"];
-    private static readonly string[] SecretKeys = ["pass", "pwd", "token", "secret", "session", "auth", "ticket", "credential"];
+    private static readonly string[] SecretKeys = ["password", "passwd", "pwd", "token", "secret", "session", "auth", "ticket", "credential"];
     private static readonly string[] EmuPrefixes = ["steam_emu", "cream_api"];
 
     public static IReadOnlyList<ConfigCandidate> Find(Game game, FinderRoots roots)

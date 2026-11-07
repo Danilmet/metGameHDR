@@ -92,13 +92,14 @@ public class ConfigFinderTests
         {
             var install = Path.Combine(dir, "game");
             Directory.CreateDirectory(install);
-            File.WriteAllText(Path.Combine(install, "a.ini"), "Password=abc\r\nWidth=1920\r\nsession_token = xyz\r\n");
+            File.WriteAllText(Path.Combine(install, "a.ini"), "Password=abc\r\nWidth=1920\r\nsession_token = xyz\r\nShadowPassQuality=3\r\n");
 
             var c = Assert.Single(ConfigFinder.Find(MakeGame("Zed", install), Roots(dir)));
 
             Assert.Contains("Password=***", c.Text);
             Assert.Contains("Width=1920", c.Text);
             Assert.Contains("session_token = ***\r\n", c.Text);
+            Assert.Contains("ShadowPassQuality=3", c.Text);
             Assert.DoesNotContain("abc", c.Text);
             Assert.DoesNotContain("xyz", c.Text);
         });
