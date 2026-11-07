@@ -48,7 +48,7 @@ public static class ShortcutsFile
             entry["AppName"] = appName;
             entry["Exe"] = exeQuoted;
             if (!matchedByDir) entry["StartDir"] = startDir;
-            entry["icon"] = icon;
+            if (icon.Length > 0) entry["icon"] = icon;
             entry["LaunchOptions"] = launchOptions;
             return entry;
         }

@@ -11,7 +11,7 @@ namespace MetGameHDR.Ui;
 
 public partial class MainWindow : Window
 {
-    static readonly HttpClient Http = new();
+    static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
     readonly Settings settings;
     readonly Library lib;

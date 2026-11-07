@@ -34,6 +34,14 @@ public class ShortcutsFileTests
         Assert.Equal("-x", e["LaunchOptions"]);
     }
 
+    [Fact] public void Upsert_EmptyIconKeepsExistingIcon()
+    {
+        var root = ShortcutsFile.Load(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".vdf"));
+        var e = ShortcutsFile.Upsert(root, "G", @"C:\G\g.exe", @"C:\G", "i.png");
+        ShortcutsFile.Upsert(root, "G", @"C:\G\g.exe", @"C:\G", "");
+        Assert.Equal("i.png", e["icon"]);
+    }
+
     [Fact] public void Save_WritesBackupAndAtomically()
     {
         var path = Path.GetTempFileName(); File.WriteAllBytes(path, BinaryVdfTests.Fixture());
