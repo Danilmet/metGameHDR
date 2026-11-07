@@ -73,7 +73,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
     // '<' (XML) is refused; '{' is accepted only as line JSON where every edited key already exists.
     internal static bool CanWrite(string text, IReadOnlyList<ConfigEdit> edits)
     {
-        var first = text.TrimStart('﻿', ' ', '\t', '\r', '\n', '\0').FirstOrDefault();
+        var first = text.TrimStart('\uFEFF', ' ', '\t', '\r', '\n', '\0').FirstOrDefault();
         if (first == '<') return false;
         return first != '{' || edits.All(e => IniEditor.CurrentValue(text, null, e.Key) != null);
     }
@@ -144,7 +144,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
             var buf = new char[MaxConfigChars + 1];
             var n = reader.ReadBlock(buf, 0, buf.Length);
             var text = ConfigFinder.MaskSecrets(new string(buf, 0, Math.Min(n, MaxConfigChars)));
-            var format = text.TrimStart('﻿', ' ', '\t', '\r', '\n').StartsWith('{') ? "json" : "ini";
+            var format = text.TrimStart('\uFEFF', ' ', '\t', '\r', '\n').StartsWith('{') ? "json" : "ini";
             return (path, format, text, n > MaxConfigChars);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }

@@ -386,6 +386,7 @@ public partial class MainWindow : Window
     // Stage 1 finds the config file (skipped for «Подобрать» when already located), stage 2 asks for advice.
     async Task RunAdviceAsync(GameRow row, bool ask)
     {
+        if (asking != null) return;
         using var cts = new CancellationTokenSource();
         asking = cts;
         SetAsking(row, true);
@@ -426,7 +427,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            asking = null;
+            if (ReferenceEquals(asking, cts)) asking = null;
             SetAsking(row, false);
         }
     }
