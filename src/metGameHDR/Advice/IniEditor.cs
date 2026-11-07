@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace MetGameHDR.Advice;
 
@@ -6,11 +7,15 @@ public static class IniEditor
 {
     private const string NonKeyPrefixes = "+-.!;#/";
 
+    // Flat one-key-per-line JSON (Remedy renderer.ini): groups are indent, key, separator, value, trailing comma.
+    private static readonly Regex JsonLine = new("^(\\s*)\"([^\"]+)\"(\\s*:\\s*)(.*?)(,?)\\s*$");
+
     public static string Apply(string text, IReadOnlyList<ConfigEdit> edits)
     {
         var nl = DetectNewline(text);
         var lines = Split(text);
-        foreach (var edit in edits) ApplyOne(lines, edit, nl);
+        var json = text.TrimStart('\uFEFF', ' ', '\t', '\r', '\n').StartsWith('{');
+        foreach (var edit in edits) ApplyOne(lines, edit, nl, json);
         return string.Concat(lines);
     }
 
@@ -40,19 +45,28 @@ public static class IniEditor
         var i = Find(lines, section, key, out _, out _);
         if (i < 0) return null;
         var content = Content(lines[i]);
+        if (JsonLine.Match(content) is { Success: true } j) return j.Groups[4].Value;
         return content[ValueStart(content)..].TrimEnd();
     }
 
-    private static void ApplyOne(List<string> lines, ConfigEdit edit, string nl)
+    private static void ApplyOne(List<string> lines, ConfigEdit edit, string nl, bool json)
     {
         var i = Find(lines, edit.Section, edit.Key, out var sectionFound, out var lastNonBlank);
         if (i >= 0)
         {
             var content = Content(lines[i]);
+            if (JsonLine.Match(content) is { Success: true } j)
+            {
+                var v = j.Groups[4];
+                var value = v.Value.StartsWith('"') && !edit.Value.StartsWith('"') ? $"\"{edit.Value}\"" : edit.Value;
+                lines[i] = content[..v.Index] + value + content[(v.Index + v.Length)..] + lines[i][content.Length..];
+                return;
+            }
             lines[i] = content[..ValueStart(content)] + edit.Value + lines[i][content.Length..];
             return;
         }
 
+        if (json) return;
         var newLine = $"{edit.Key}={edit.Value}";
         if (!sectionFound)
         {
@@ -84,6 +98,12 @@ public static class IniEditor
         var found = -1;
         for (var i = 0; i < lines.Count; i++)
         {
+            var jm = JsonLine.Match(Content(lines[i]));
+            if (jm.Success)
+            {
+                if (found < 0 && string.Equals(jm.Groups[2].Value, key.Trim(), StringComparison.OrdinalIgnoreCase)) found = i;
+                continue;
+            }
             var trimmed = Content(lines[i]).TrimStart();
             var isHeader = trimmed.StartsWith('[');
             if (isHeader)

@@ -236,7 +236,7 @@ public sealed class GameRow : INotifyPropertyChanged
                 canApply = Advisor.EditsValid(config)
                     && Advisor.IsCandidate(Advisor.EffectiveGame(lib, Game), roots, config.Path)
                     && File.Exists(config.Path)
-                    && Advisor.LooksLikeIni(File.ReadAllBytes(config.Path));
+                    && Advisor.CanWrite(File.ReadAllText(config.Path), config.Edits);
             }
             catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException) { }
         }

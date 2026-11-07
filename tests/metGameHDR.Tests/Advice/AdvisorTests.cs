@@ -120,7 +120,7 @@ public class AdvisorTests
     }
 
     [Fact]
-    public void Apply_JsonFile_ReturnsNotIni()
+    public void Apply_JsonFile_MissingKey_ReturnsNotIni()
     {
         using var e = new Env();
         File.WriteAllText(e.Ini, "  {\"a\":1}");
@@ -131,6 +131,24 @@ public class AdvisorTests
         Assert.Equal("  {\"a\":1}", File.ReadAllText(e.Ini));
         Assert.False(File.Exists(e.Ini + ".orig"));
     }
+
+    [Fact]
+    public void Apply_LineJsonWithAllKeys_Applies()
+    {
+        using var e = new Env();
+        File.WriteAllText(e.Ini, "{\n\t\"A\": 1,\n\t\"B\": 2\n}\n");
+
+        var outcome = e.Advisor().Apply(e.Game, e.AdviceFor(e.Ini));
+
+        Assert.Equal(ApplyOutcome.Applied, outcome);
+        Assert.Equal("{\n\t\"A\": 2,\n\t\"B\": 2\n}\n", File.ReadAllText(e.Ini));
+        Assert.True(File.Exists(e.Ini + ".orig"));
+        Assert.True(File.Exists(e.Ini + ".bak"));
+    }
+
+    [Fact]
+    public void CanWrite_Xml_IsFalse() =>
+        Assert.False(Advisor.CanWrite("<?xml version=\"1.0\"?><a/>", [new ConfigEdit(null, "a", "1")]));
 
     [Theory]
     [InlineData("A", "2\r\nEvil=1")]

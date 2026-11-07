@@ -108,4 +108,38 @@ public class IniEditorTests
         Assert.Equal("\"1\"", IniEditor.CurrentValue("seta r_shadows \"1\"\n", null, "r_shadows"));
         Assert.Equal("\"a b\"", IniEditor.CurrentValue("seta r_x \"a b\"\n", null, "r_x"));
     }
+
+    [Fact]
+    public void Apply_JsonLine_ReplacesValueKeepsIndentAndComma()
+    {
+        var text = "{\n\t\"m_eVSync\": 1,\n\t\"x\": 2\n}\n";
+        Assert.Equal("{\n\t\"m_eVSync\": 0,\n\t\"x\": 2\n}\n", IniEditor.Apply(text, E(null, "m_eVSync", "0")));
+    }
+
+    [Fact]
+    public void Apply_JsonLine_QuotedValueStaysQuoted()
+    {
+        var text = "{\n\t\"m_sPreset\": \"high\",\n\t\"x\": 2\n}\n";
+        Assert.Equal("{\n\t\"m_sPreset\": \"low\",\n\t\"x\": 2\n}\n", IniEditor.Apply(text, E(null, "m_sPreset", "low")));
+    }
+
+    [Fact]
+    public void Apply_JsonLine_LastLineWithoutComma()
+    {
+        var text = "{\r\n\t\"a\": 1,\r\n\t\"b\": true\r\n}";
+        Assert.Equal("{\r\n\t\"a\": 1,\r\n\t\"b\": false\r\n}", IniEditor.Apply(text, E("S", "b", "false")));
+    }
+
+    [Fact]
+    public void CurrentValue_JsonLine_ReturnsRawValue()
+    {
+        Assert.Equal("360.0", IniEditor.CurrentValue("{\n\t\"m_maxFrameRate\": 360.0,\n}\n", null, "m_maxFrameRate"));
+    }
+
+    [Fact]
+    public void Apply_JsonLine_MissingKey_IsNotAppended()
+    {
+        var text = "{\n\t\"a\": 1\n}\n";
+        Assert.Equal(text, IniEditor.Apply(text, E(null, "zzz", "1")));
+    }
 }

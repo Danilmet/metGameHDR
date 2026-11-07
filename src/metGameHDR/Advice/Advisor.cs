@@ -40,11 +40,12 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
         !string.IsNullOrWhiteSpace(e.Key) && e.Key.IndexOfAny(['=', '\r', '\n']) < 0
         && e.Value is not null && e.Value.IndexOfAny(['\r', '\n']) < 0);
 
-    public static bool LooksLikeIni(byte[] file)
+    // '<' (XML) is refused; '{' is accepted only as line JSON where every edited key already exists.
+    internal static bool CanWrite(string text, IReadOnlyList<ConfigEdit> edits)
     {
-        // Leading BOM bytes, NULs (UTF-16) and whitespace are skipped to reach the first real character.
-        var first = file.SkipWhile(b => b is 0xEF or 0xBB or 0xBF or 0xFF or 0xFE or 0 or 9 or 10 or 13 or 32).FirstOrDefault();
-        return first is not ((byte)'{' or (byte)'<');
+        var first = text.TrimStart('\uFEFF', ' ', '\t', '\r', '\n', '\0').FirstOrDefault();
+        if (first == '<') return false;
+        return first != '{' || edits.All(e => IniEditor.CurrentValue(text, null, e.Key) != null);
     }
 
     static string Norm(string p) => Path.GetFullPath(p).TrimEnd('\\', '/');
@@ -72,7 +73,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
         if (isRunning(game)) return ApplyOutcome.GameRunning;
 
         var original = File.ReadAllBytes(path);
-        if (!LooksLikeIni(original)) return ApplyOutcome.NotIni;
+        if (!CanWrite(File.ReadAllText(path), config.Edits)) return ApplyOutcome.NotIni;
         if (!File.Exists(path + ".orig")) File.WriteAllBytes(path + ".orig", original);
         File.WriteAllBytes(path + ".bak", original);
 
