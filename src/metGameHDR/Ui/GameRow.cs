@@ -7,6 +7,8 @@ using MetGameHDR.Steam;
 
 namespace MetGameHDR.Ui;
 
+public sealed record AdviceRowVm(string Name, string Current, string Recommended, string Reason, bool IsConfig);
+
 public sealed class GameRow : INotifyPropertyChanged
 {
     readonly Library lib;
@@ -21,6 +23,8 @@ public sealed class GameRow : INotifyPropertyChanged
     bool canApply;
     bool isAsking;
     string adviceStatus = "";
+    string applyStatus = "";
+    IReadOnlyList<AdviceRowVm> adviceRows = [];
 
     public GameRow(Game game, Library lib, SteamStatus? steamStatus, Action onHdrChanged,
         FinderRoots roots, Func<GraphicsGoal> defaultGoal, Func<bool> hasKey)
@@ -171,7 +175,9 @@ public sealed class GameRow : INotifyPropertyChanged
     public Advice.Advice? Latest => latest;
     public bool HasAdvice => latest != null;
     public string AdviceSummary => latest?.Result.Summary ?? "";
-    public IReadOnlyList<SettingAdvice> AdviceItems => latest?.Result.Settings ?? [];
+    public IReadOnlyList<AdviceRowVm> AdviceRows => adviceRows;
+    public string AdviceHeading => latest?.Result.Config is { Edits.Count: > 0 } ? "Рекомендуемые настройки:" : "Выставить в меню игры:";
+    public string OptimizedText => latest is null ? "Настройки не подобраны" : $"Настройки подобраны {AdviceAt}";
     public string AdviceNotes => latest?.Result.Notes ?? "";
     public string AdviceAt => latest is null ? "" : latest.At.ToLocalTime().ToString("dd.MM HH:mm");
     public bool CanApply => canApply;
@@ -200,11 +206,22 @@ public sealed class GameRow : INotifyPropertyChanged
         }
     }
 
+    public string ApplyStatus
+    {
+        get => applyStatus;
+        set
+        {
+            applyStatus = value;
+            Notify(nameof(ApplyStatus));
+        }
+    }
+
     public void LoadAdvice()
     {
         latest = lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.Advice : null;
         canApply = false;
-        foreach (var name in new[] { nameof(Latest), nameof(HasAdvice), nameof(AdviceSummary), nameof(AdviceItems), nameof(AdviceNotes), nameof(AdviceAt), nameof(CanApply), nameof(GoalFps), nameof(GoalPriority) })
+        adviceRows = [];
+        foreach (var name in new[] { nameof(Latest), nameof(HasAdvice), nameof(AdviceSummary), nameof(AdviceRows), nameof(AdviceHeading), nameof(OptimizedText), nameof(AdviceNotes), nameof(AdviceAt), nameof(CanApply), nameof(GoalFps), nameof(GoalPriority) })
             Notify(name);
     }
 
@@ -223,7 +240,26 @@ public sealed class GameRow : INotifyPropertyChanged
             }
             catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException) { }
         }
+        adviceRows = BuildRows();
         Notify(nameof(CanApply));
+        Notify(nameof(AdviceRows));
+    }
+
+    // The config file is read only once it passed the candidate check; otherwise the model-supplied path stays untouched.
+    List<AdviceRowVm> BuildRows()
+    {
+        var rows = new List<AdviceRowVm>();
+        if (latest is null) return rows;
+        if (latest.Result.Config is { } config)
+        {
+            var edits = canApply
+                ? Advisor.Preview(latest).Select(p => (p.Edit, Current: p.Current ?? "нет"))
+                : config.Edits.Select(e => (Edit: e, Current: "—"));
+            foreach (var (edit, current) in edits)
+                rows.Add(new(edit.Section is null ? edit.Key : $"[{edit.Section}] {edit.Key}", current, edit.Value, "", true));
+        }
+        rows.AddRange(latest.Result.Settings.Select(s => new AdviceRowVm(s.Name, "—", s.Value, s.Reason, false)));
+        return rows;
     }
 
     public void NotifyDefaultsChanged()

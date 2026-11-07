@@ -192,7 +192,7 @@ public class AdvisorTests
     {
         using var e = new Env();
 
-        var preview = e.Advisor().Preview(e.Game, e.AdviceFor(e.Ini));
+        var preview = Advisor.Preview(e.AdviceFor(e.Ini));
 
         var p = Assert.Single(preview);
         Assert.Equal("1", p.Current);

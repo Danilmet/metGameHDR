@@ -64,6 +64,7 @@ public class ClaudeClientTests
         Assert.False(root.TryGetProperty("output_config", out _));
         var system = root.GetProperty("system").GetString()!;
         Assert.Contains("Отвечай только одним JSON-объектом по этой схеме", system);
+        Assert.Contains("строго по-русски", system);
         Assert.Contains("\"additionalProperties\"", system);
         Assert.Equal("default", root.GetProperty("fallbacks").GetString());
     }

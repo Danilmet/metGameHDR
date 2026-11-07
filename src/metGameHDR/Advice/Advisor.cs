@@ -49,7 +49,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Library
 
     static string Norm(string p) => Path.GetFullPath(p).TrimEnd('\\', '/');
 
-    public IReadOnlyList<EditPreview> Preview(Game game, Advice advice)
+    public static IReadOnlyList<EditPreview> Preview(Advice advice)
     {
         var config = advice.Result.Config;
         if (config is null) return [];

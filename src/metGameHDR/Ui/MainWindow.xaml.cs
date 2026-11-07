@@ -127,12 +127,34 @@ public partial class MainWindow : Window
 
     void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && GamesGrid.SelectedItems.Count > 0)
+        if (e.Key != Key.Escape) return;
+        if (GamePage.Visibility == Visibility.Visible)
+        {
+            ShowGamePage(false);
+            e.Handled = true;
+        }
+        else if (GamesGrid.SelectedItems.Count > 0)
         {
             GamesGrid.UnselectAll();
             e.Handled = true;
         }
     }
+
+    void ShowGamePage(bool show)
+    {
+        GamePage.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        GamesArea.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    void OpenGamePage_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not GameRow row) return;
+        row.ApplyStatus = "";
+        row.RefreshCanApply();
+        ShowGamePage(true);
+    }
+
+    void CloseGamePage_Click(object sender, RoutedEventArgs e) => ShowGamePage(false);
 
     void Card_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -149,8 +171,11 @@ public partial class MainWindow : Window
         if (ReferenceEquals(e.OriginalSource, GamesGrid)) GamesGrid.ReleaseMouseCapture();
     }
 
-    void GamesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+    void GamesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
         DetailsPanel.Visibility = GamesGrid.SelectedItems.Count == 1 ? Visibility.Visible : Visibility.Collapsed;
+        if (GamesGrid.SelectedItems.Count != 1) ShowGamePage(false);
+    }
 
     protected override void OnClosing(CancelEventArgs e)
     {
@@ -337,6 +362,7 @@ public partial class MainWindow : Window
                 current.LoadAdvice();
                 current.RefreshCanApply();
                 current.AdviceStatus = "";
+                current.ApplyStatus = "";
             }
         }
         catch (Exception ex)
@@ -360,12 +386,10 @@ public partial class MainWindow : Window
 
     void Apply_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is not GameRow { Latest: { Result.Config: { } config } advice } row) return;
-        var dialog = new ApplyDialog(config.Path, advisor.Preview(row.Game, advice)) { Owner = this };
-        if (dialog.ShowDialog() != true) return;
+        if ((sender as FrameworkElement)?.DataContext is not GameRow { Latest: { Result.Config: not null } advice } row) return;
         try
         {
-            row.AdviceStatus = advisor.Apply(row.Game, advice) switch
+            row.ApplyStatus = advisor.Apply(row.Game, advice) switch
             {
                 ApplyOutcome.Applied => "Применено",
                 ApplyOutcome.GameRunning => "Закройте игру и повторите",
@@ -379,7 +403,7 @@ public partial class MainWindow : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.Write($"Apply advice: {ex}");
-            row.AdviceStatus = ex.Message;
+            row.ApplyStatus = ex.Message;
         }
         row.LoadAdvice();
         row.RefreshCanApply();

@@ -28,217 +28,285 @@
 
         <Grid Grid.Row="1" Margin="14,8,14,14"
               Visibility="{Binding IsChecked, ElementName=GamesTab, Converter={StaticResource BoolToVisibility}}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+            <Grid x:Name="GamesArea">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-            <ListBox x:Name="GamesGrid" SelectionMode="Extended" SelectionChanged="GamesGrid_SelectionChanged"
-                     GotMouseCapture="GamesGrid_GotMouseCapture"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                <ListBox.ItemContainerStyle>
-                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
-                        <EventSetter Event="PreviewMouseLeftButtonDown" Handler="Card_PreviewMouseLeftButtonDown"/>
-                    </Style>
-                </ListBox.ItemContainerStyle>
-                <ListBox.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel/>
-                    </ItemsPanelTemplate>
-                </ListBox.ItemsPanel>
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Border x:Name="Card" Width="150" Height="225" Margin="4" CornerRadius="10"
-                                BorderThickness="2" BorderBrush="Transparent">
-                            <Grid>
-                                <!-- Border.CornerRadius does not clip children; the card size is fixed, so a fixed clip works. -->
-                                <Grid.Clip>
-                                    <RectangleGeometry Rect="0,0,146,221" RadiusX="8" RadiusY="8"/>
-                                </Grid.Clip>
-                                <Border x:Name="Placeholder" Background="{DynamicResource Surface}" Visibility="Collapsed">
-                                    <Image Source="{Binding Icon}" Width="48" Height="48" Margin="0,0,0,30"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <Image Source="{Binding Cover}" Stretch="UniformToFill"/>
-                                <Border VerticalAlignment="Bottom" Background="{DynamicResource Overlay}" Padding="10,28,10,10">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold"/>
-                                        <Border Grid.Column="1" Margin="6,0,0,0" Padding="4,0" CornerRadius="4" HorizontalAlignment="Right" VerticalAlignment="Center" BorderThickness="1" BorderBrush="{DynamicResource TextSecondary}" Opacity="0.85">
-                                            <Border.Style>
-                                                <Style TargetType="Border">
-                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                    <Style.Triggers>
-                                                        <MultiDataTrigger>
-                                                            <MultiDataTrigger.Conditions>
-                                                                <Condition Binding="{Binding SteamApplies}" Value="True"/>
-                                                                <Condition Binding="{Binding SteamAdded}" Value="False"/>
-                                                            </MultiDataTrigger.Conditions>
-                                                            <Setter Property="Visibility" Value="Visible"/>
-                                                        </MultiDataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                            <TextBlock Text="Steam" FontSize="9" FontWeight="Bold" TextDecorations="Strikethrough">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                <ListBox x:Name="GamesGrid" SelectionMode="Extended" SelectionChanged="GamesGrid_SelectionChanged"
+                         GotMouseCapture="GamesGrid_GotMouseCapture"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="Card_PreviewMouseLeftButtonDown"/>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel/>
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border x:Name="Card" Width="150" Height="225" Margin="4" CornerRadius="10"
+                                    BorderThickness="2" BorderBrush="Transparent">
+                                <Grid>
+                                    <!-- Border.CornerRadius does not clip children; the card size is fixed, so a fixed clip works. -->
+                                    <Grid.Clip>
+                                        <RectangleGeometry Rect="0,0,146,221" RadiusX="8" RadiusY="8"/>
+                                    </Grid.Clip>
+                                    <Border x:Name="Placeholder" Background="{DynamicResource Surface}" Visibility="Collapsed">
+                                        <Image Source="{Binding Icon}" Width="48" Height="48" Margin="0,0,0,30"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <Image Source="{Binding Cover}" Stretch="UniformToFill"/>
+                                    <Border VerticalAlignment="Bottom" Background="{DynamicResource Overlay}" Padding="10,28,10,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold"/>
+                                            <Border Grid.Column="1" Margin="6,0,0,0" Padding="4,0" CornerRadius="4" HorizontalAlignment="Right" VerticalAlignment="Center" BorderThickness="1" BorderBrush="{DynamicResource TextSecondary}" Opacity="0.85">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding SteamApplies}" Value="True"/>
+                                                                    <Condition Binding="{Binding SteamAdded}" Value="False"/>
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </MultiDataTrigger>
+                                                        </Style.Triggers>
                                                     </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </Border>
-                                    </Grid>
-                                </Border>
-                                <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8" Padding="7,2"
-                                        CornerRadius="999" Background="#99000000">
-                                    <TextBlock Text="{Binding Source}" Foreground="White" FontSize="10"/>
-                                </Border>
-                                <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6" Padding="5,1" CornerRadius="4" Background="#B3000000" IsHitTestVisible="False" BorderThickness="1.5" BorderBrush="#D9FFFFFF" Opacity="0.85">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
+                                                </Border.Style>
+                                                <TextBlock Text="Steam" FontSize="9" FontWeight="Bold" TextDecorations="Strikethrough">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                    <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8" Padding="7,2"
+                                            CornerRadius="999" Background="#99000000">
+                                        <TextBlock Text="{Binding Source}" Foreground="White" FontSize="10"/>
+                                    </Border>
+                                    <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6" Padding="5,1" CornerRadius="4" Background="#B3000000" IsHitTestVisible="False" BorderThickness="1.5" BorderBrush="#D9FFFFFF" Opacity="0.85">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding HdrApplies}" Value="True"/>
+                                                            <Condition Binding="{Binding HdrEnabled}" Value="False"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="nonHDR" FontSize="10" FontWeight="Bold">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                    <Setter Property="Foreground" Value="#D9FFFFFF"/>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Cover}" Value="{x:Null}">
+                                    <Setter TargetName="Placeholder" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                    <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <Border x:Name="DetailsPanel" Grid.Column="1" Style="{StaticResource CardSurface}" Width="260" Margin="12,0,0,0"
+                        VerticalAlignment="Top" Visibility="Collapsed"
+                        DataContext="{Binding SelectedItem, ElementName=GamesGrid}"
+                        DataContextChanged="DetailsPanel_DataContextChanged">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="✕" Width="28" Height="28" Padding="0" Margin="8,0,0,0"
+                                    VerticalAlignment="Top" ToolTip="Закрыть" Click="CloseDetails_Click"/>
+                        </Grid>
+                        <TextBlock Margin="0,2,0,0" Text="{Binding Details, Mode=OneWay}" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"/>
+                        <CheckBox Style="{StaticResource HdrToggle}" Content="HDR" Margin="0,10,0,0"
+                                  IsChecked="{Binding HdrEnabled, UpdateSourceTrigger=PropertyChanged}"
+                                  Visibility="{Binding HdrApplies, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock Text="Exe" Margin="0,14,0,4" Foreground="{DynamicResource TextSecondary}"/>
+                        <ComboBox IsEditable="True" ItemsSource="{Binding ExeCandidates}" IsEnabled="{Binding CanAddToSteam}"
+                                  Text="{Binding MainExe, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Text="Имя для поиска" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
+                        <TextBox Text="{Binding SearchName, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Text="Графика" FontWeight="SemiBold" Margin="0,18,0,0"/>
+                        <TextBlock Text="{Binding OptimizedText, Mode=OneWay}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextSecondary}"/>
+                        <Button Content="Открыть" Margin="0,10,0,0" Style="{StaticResource AccentButton}" Click="OpenGamePage_Click"
+                                Visibility="{Binding HasKey, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock Text="Укажите ключ Claude в настройках" Margin="0,10,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextSecondary}"
+                                   Visibility="{Binding NoKey, Converter={StaticResource BoolToVisibility}}"/>
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,12,0,0">
+                    <Button x:Name="RefreshButton" Content="Обновить" Click="Refresh_Click"/>
+                    <Button x:Name="AddAppButton" Content="Добавить приложение" Margin="8,0,0,0" Click="AddApp_Click"/>
+                    <Button x:Name="AddToSteamButton" Content="Добавить выбранное в Steam" Margin="8,0,0,0"
+                            Style="{StaticResource AccentButton}" Click="AddToSteam_Click"/>
+                    <TextBlock x:Name="StatusText" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
+                </StackPanel>
+            </Grid>
+            <Grid x:Name="GamePage" Visibility="Collapsed"
+                  DataContext="{Binding SelectedItem, ElementName=GamesGrid}">
+                <Border Style="{StaticResource CardSurface}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="← Назад" VerticalAlignment="Center" Click="CloseGamePage_Click"/>
+                            <Image Source="{Binding Cover}" Height="72" Margin="14,0,0,0" Stretch="Uniform"/>
+                            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding Details, Mode=OneWay}" Foreground="{DynamicResource TextSecondary}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,14,0,0">
+                            <TextBlock Text="FPS" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{DynamicResource TextSecondary}"/>
+                            <Grid Width="60">
+                                <TextBox x:Name="GoalFpsBox" Text="{Binding GoalFps, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBlock Text="{Binding FpsHint, Mode=OneWay}" Margin="9,0,0,0" VerticalAlignment="Center"
+                                           IsHitTestVisible="False" Foreground="{DynamicResource TextSecondary}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                             <Style.Triggers>
-                                                <MultiDataTrigger>
-                                                    <MultiDataTrigger.Conditions>
-                                                        <Condition Binding="{Binding HdrApplies}" Value="True"/>
-                                                        <Condition Binding="{Binding HdrEnabled}" Value="False"/>
-                                                    </MultiDataTrigger.Conditions>
+                                                <DataTrigger Binding="{Binding Text, ElementName=GoalFpsBox}" Value="">
                                                     <Setter Property="Visibility" Value="Visible"/>
-                                                </MultiDataTrigger>
+                                                </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </Border.Style>
-                                    <TextBlock Text="nonHDR" FontSize="10" FontWeight="Bold">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                                <Setter Property="Foreground" Value="#D9FFFFFF"/>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </Border>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </Grid>
-                        </Border>
-                        <DataTemplate.Triggers>
-                            <DataTrigger Binding="{Binding Cover}" Value="{x:Null}">
-                                <Setter TargetName="Placeholder" Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
-                                <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource Accent}"/>
-                            </DataTrigger>
-                        </DataTemplate.Triggers>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                            <ComboBox Width="150" Margin="8,0,0,0" SelectedValuePath="Tag" SelectedValue="{Binding GoalPriority}">
+                                <ComboBoxItem Content="Картинка" Tag="{x:Static adv:Priority.Quality}"/>
+                                <ComboBoxItem Content="Баланс" Tag="{x:Static adv:Priority.Balanced}"/>
+                                <ComboBoxItem Content="Отзывчивость" Tag="{x:Static adv:Priority.Responsive}"/>
+                            </ComboBox>
+                            <Button Content="Подобрать" Margin="8,0,0,0" Style="{StaticResource AccentButton}" Click="Ask_Click"
+                                    IsEnabled="{Binding CanAsk}"/>
+                            <TextBlock Text="{Binding AdviceStatus, Mode=OneWay}" Margin="12,0,0,0" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
 
-            <Border x:Name="DetailsPanel" Grid.Column="1" Style="{StaticResource CardSurface}" Width="260" Margin="12,0,0,0"
-                    VerticalAlignment="Top" Visibility="Collapsed"
-                    DataContext="{Binding SelectedItem, ElementName=GamesGrid}"
-                    DataContextChanged="DetailsPanel_DataContextChanged">
-                <StackPanel>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"
-                                   VerticalAlignment="Center"/>
-                        <Button Grid.Column="1" Content="✕" Width="28" Height="28" Padding="0" Margin="8,0,0,0"
-                                VerticalAlignment="Top" ToolTip="Закрыть" Click="CloseDetails_Click"/>
-                    </Grid>
-                    <TextBlock Margin="0,2,0,0" Text="{Binding Details, Mode=OneWay}" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"/>
-                    <CheckBox Style="{StaticResource HdrToggle}" Content="HDR" Margin="0,10,0,0"
-                              IsChecked="{Binding HdrEnabled, UpdateSourceTrigger=PropertyChanged}"
-                              Visibility="{Binding HdrApplies, Converter={StaticResource BoolToVisibility}}"/>
-                    <TextBlock Text="Exe" Margin="0,14,0,4" Foreground="{DynamicResource TextSecondary}"/>
-                    <ComboBox IsEditable="True" ItemsSource="{Binding ExeCandidates}" IsEnabled="{Binding CanAddToSteam}"
-                              Text="{Binding MainExe, UpdateSourceTrigger=PropertyChanged}"/>
-                    <TextBlock Text="Имя для поиска" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
-                    <TextBox Text="{Binding SearchName, UpdateSourceTrigger=PropertyChanged}"/>
-                    <TextBlock Text="Графика" FontWeight="SemiBold" Margin="0,18,0,0"/>
-                    <Grid Margin="0,8,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="60"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="FPS" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{DynamicResource TextSecondary}"/>
-                        <TextBox x:Name="GoalFpsBox" Grid.Column="1" Text="{Binding GoalFps, UpdateSourceTrigger=PropertyChanged}"/>
-                        <TextBlock Grid.Column="1" Text="{Binding FpsHint, Mode=OneWay}" Margin="9,0,0,0" VerticalAlignment="Center"
-                                   IsHitTestVisible="False" Foreground="{DynamicResource TextSecondary}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Text, ElementName=GoalFpsBox}" Value="">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </Grid>
-                    <ComboBox Margin="0,8,0,0" SelectedValuePath="Tag" SelectedValue="{Binding GoalPriority}">
-                        <ComboBoxItem Content="Картинка" Tag="{x:Static adv:Priority.Quality}"/>
-                        <ComboBoxItem Content="Баланс" Tag="{x:Static adv:Priority.Balanced}"/>
-                        <ComboBoxItem Content="Отзывчивость" Tag="{x:Static adv:Priority.Responsive}"/>
-                    </ComboBox>
-                    <Button Content="Подобрать" Margin="0,10,0,0" Style="{StaticResource AccentButton}" Click="Ask_Click"
-                            IsEnabled="{Binding CanAsk}"
-                            Visibility="{Binding HasKey, Converter={StaticResource BoolToVisibility}}"/>
-                    <TextBlock Text="Укажите ключ Claude в настройках" Margin="0,10,0,0" TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextSecondary}"
-                               Visibility="{Binding NoKey, Converter={StaticResource BoolToVisibility}}"/>
-                    <StackPanel Visibility="{Binding HasAdvice, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="{Binding AdviceSummary, Mode=OneWay}" Margin="0,12,0,0" TextWrapping="Wrap"/>
-                        <ScrollViewer MaxHeight="240" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding AdviceItems}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Margin="0,0,0,6">
-                                            <TextBlock TextWrapping="Wrap">
-                                                <Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text=" — "/><Run Text="{Binding Value, Mode=OneWay}"/>
-                                            </TextBlock>
-                                            <TextBlock Text="{Binding Reason, Mode=OneWay}" FontSize="11" TextWrapping="Wrap"
-                                                       Foreground="{DynamicResource TextSecondary}"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                        <ScrollViewer Grid.Row="2" Margin="0,14,0,0" VerticalScrollBarVisibility="Auto">
+                            <StackPanel MaxWidth="900" HorizontalAlignment="Left" Grid.IsSharedSizeScope="True"
+                                        Visibility="{Binding HasAdvice, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="{Binding AdviceSummary, Mode=OneWay}" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding AdviceHeading, Mode=OneWay}" Margin="0,14,0,6" FontWeight="SemiBold"/>
+                                <Grid Margin="8,0,8,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Name"/>
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Current"/>
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Recommended"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Настройка" Foreground="{DynamicResource TextSecondary}"/>
+                                    <TextBlock Grid.Column="1" Text="Сейчас" Foreground="{DynamicResource TextSecondary}"/>
+                                    <TextBlock Grid.Column="2" Text="Рекомендуется" Foreground="{DynamicResource TextSecondary}"/>
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding AdviceRows, Mode=OneWay}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border x:Name="RowBorder" Padding="8,6" CornerRadius="6" Margin="0,0,0,2">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Name"/>
+                                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Current"/>
+                                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Recommended"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel MaxWidth="420" Margin="0,0,16,0">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Name, Mode=OneWay}" TextWrapping="Wrap" FontWeight="SemiBold"/>
+                                                            <Border x:Name="ConfigTag" Visibility="Collapsed" Margin="8,0,0,0" Padding="4,0" CornerRadius="4"
+                                                                    VerticalAlignment="Center" BorderThickness="1" BorderBrush="{DynamicResource TextSecondary}">
+                                                                <TextBlock Text="конфиг" FontSize="10" Foreground="{DynamicResource TextSecondary}"/>
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Reason, Mode=OneWay}" FontSize="12" TextWrapping="Wrap"
+                                                                   Foreground="{DynamicResource TextSecondary}"/>
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Current, Mode=OneWay}" TextWrapping="Wrap" MaxWidth="200"
+                                                               Margin="0,0,16,0" Foreground="{DynamicResource TextSecondary}"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding Recommended, Mode=OneWay}" TextWrapping="Wrap" MaxWidth="260"
+                                                               FontWeight="SemiBold"/>
+                                                </Grid>
+                                            </Border>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding IsConfig}" Value="True">
+                                                    <Setter TargetName="RowBorder" Property="Background" Value="{DynamicResource SurfaceHover}"/>
+                                                    <Setter TargetName="ConfigTag" Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding AdviceNotes, Mode=OneWay}" Margin="0,10,0,0" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextSecondary}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding AdviceNotes}" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="{Binding AdviceAt, Mode=OneWay}" FontSize="11" Margin="0,6,0,0"
+                                           Foreground="{DynamicResource TextSecondary}"/>
+                            </StackPanel>
                         </ScrollViewer>
-                        <TextBlock Text="{Binding AdviceNotes, Mode=OneWay}" Margin="0,6,0,0" FontSize="11" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextSecondary}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding AdviceNotes}" Value="">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <TextBlock Text="{Binding AdviceAt, Mode=OneWay}" FontSize="10" Margin="0,2,0,0"
-                                   Foreground="{DynamicResource TextSecondary}"/>
-                        <Button Content="Применить" Margin="0,10,0,0" Click="Apply_Click" IsEnabled="{Binding CanApply}"/>
-                    </StackPanel>
-                    <TextBlock Text="{Binding AdviceStatus, Mode=OneWay}" Margin="0,8,0,0" TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextSecondary}"/>
-                </StackPanel>
-            </Border>
 
-            <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,12,0,0">
-                <Button x:Name="RefreshButton" Content="Обновить" Click="Refresh_Click"/>
-                <Button x:Name="AddAppButton" Content="Добавить приложение" Margin="8,0,0,0" Click="AddApp_Click"/>
-                <Button x:Name="AddToSteamButton" Content="Добавить выбранное в Steam" Margin="8,0,0,0"
-                        Style="{StaticResource AccentButton}" Click="AddToSteam_Click"/>
-                <TextBlock x:Name="StatusText" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
-            </StackPanel>
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,14,0,0">
+                            <Button Content="Применить" Style="{StaticResource AccentButton}" Click="Apply_Click" IsEnabled="{Binding CanApply}"/>
+                            <Button Content="Отменить" Margin="8,0,0,0" Click="CloseGamePage_Click"/>
+                            <TextBlock Text="{Binding ApplyStatus, Mode=OneWay}" Margin="12,0,0,0" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
         </Grid>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
