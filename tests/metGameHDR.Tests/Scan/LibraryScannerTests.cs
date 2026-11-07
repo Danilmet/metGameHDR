@@ -16,4 +16,11 @@ public class LibraryScannerTests
         Assert.Equal(["A"], games.Select(g => g.Name));
         Assert.Contains(logs, l => l.StartsWith("Gog:"));
     }
+
+    [Fact]
+    public void Scan_TrimsTrailingSeparatorBeforeDedupe()
+    {
+        var games = LibraryScanner.Scan([new Fixed(new Game("EA", @"C:\Games\EA\", GameSource.Ea, null), new Game("Dup", @"C:\Games\EA", GameSource.Folder, null))], _ => { });
+        Assert.Equal(@"C:\Games\EA", Assert.Single(games).InstallDir);
+    }
 }

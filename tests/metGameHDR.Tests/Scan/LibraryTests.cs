@@ -12,6 +12,13 @@ public class LibraryTests
         Assert.Null(lib.FindByPath(@"C:\Games\Foo.exe"));
     }
 
+    [Fact] public void FindByPath_NestedInstallDirWinsOverParent()
+    {
+        var lib = new Library { Games = [new("Parent", @"C:\Games", GameSource.Folder, null), new("Child", @"C:\Games\Child", GameSource.Folder, null)] };
+        Assert.Equal("Child", lib.FindByPath(@"C:\Games\Child\bin\c.exe")!.Name);
+        Assert.Equal("Parent", lib.FindByPath(@"C:\Games\Other\o.exe")!.Name);
+    }
+
     [Fact] public void FindByPath_SkipsAppsAndDisabled()
     {
         var app = new Game("Discord", @"C:\D", GameSource.App, @"C:\D\d.exe");

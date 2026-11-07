@@ -1,3 +1,4 @@
+using System.IO;
 using MetGameHDR.Steam;
 
 namespace MetGameHDR.Scan;
@@ -13,7 +14,8 @@ public static class LibraryScanner
             catch (Exception e) { log($"{source.Source}: {e.Message}"); }
         }
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        return games.Where(g => seen.Add(g.InstallDir)).ToList();
+        return games.Select(g => g with { InstallDir = Path.TrimEndingDirectorySeparator(g.InstallDir) })
+            .Where(g => seen.Add(g.InstallDir)).ToList();
     }
 
     public static IEnumerable<IGameSource> DefaultSources(Settings s) =>
