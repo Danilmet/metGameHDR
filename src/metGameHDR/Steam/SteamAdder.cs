@@ -29,11 +29,12 @@ public static class SteamAdder
         var gridDir = Path.Combine(configDir, "grid");
 
         var wasRunning = SteamProcess.IsRunning();
-        if (wasRunning) await SteamProcess.ShutdownAsync(steamPath);
-
-        var root = ShortcutsFile.Load(file);
+        var db = string.IsNullOrWhiteSpace(s.SteamGridDbKey) ? null : new SteamGridDb(http, s.SteamGridDbKey);
+        VdfObject? root = null;
         try
         {
+            if (wasRunning) await SteamProcess.ShutdownAsync(steamPath);
+            root = ShortcutsFile.Load(file);
             foreach (var g in games)
             {
                 var exe = lib.MainExeOf(g);
@@ -44,16 +45,16 @@ public static class SteamAdder
                 {
                     var icon = Artwork.SaveIcon(exe, gridDir, appId);
                     if (icon != null) entry["icon"] = icon;
-                    if (!string.IsNullOrWhiteSpace(s.SteamGridDbKey))
-                        await Artwork.DownloadAsync(new SteamGridDb(http, s.SteamGridDbKey), http, gridDir, appId, lib.SearchNameOf(g));
+                    if (db != null)
+                        await Artwork.DownloadAsync(db, http, gridDir, appId, lib.SearchNameOf(g));
                 }
                 catch (Exception e) { log($"{g.Name}: {e.Message}"); }
             }
         }
         finally
         {
-            ShortcutsFile.Save(file, root);
-            if (wasRunning) SteamProcess.Start(steamPath);
+            try { if (root != null) ShortcutsFile.Save(file, root); }
+            finally { if (wasRunning) SteamProcess.Start(steamPath); }
         }
 
         var result = new Dictionary<Game, SteamStatus>();
