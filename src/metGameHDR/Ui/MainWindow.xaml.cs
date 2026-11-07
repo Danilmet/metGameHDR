@@ -128,8 +128,9 @@ public partial class MainWindow : Window
     void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Escape) return;
-        if (GamePage.Visibility == Visibility.Visible)
+        if (GamesTab.IsChecked == true && GamePage.Visibility == Visibility.Visible)
         {
+            if (InOpenDropDown(Keyboard.FocusedElement) || InOpenDropDown(e.OriginalSource)) return;
             ShowGamePage(false);
             e.Handled = true;
         }
@@ -138,6 +139,17 @@ public partial class MainWindow : Window
             GamesGrid.UnselectAll();
             e.Handled = true;
         }
+    }
+
+    // The popup of a ComboBox is not in its visual tree; its items reach the ComboBox through ItemsControlFromItemContainer.
+    static bool InOpenDropDown(object? source)
+    {
+        for (var d = source as DependencyObject; d != null;
+            d = d is ComboBoxItem item ? ItemsControl.ItemsControlFromItemContainer(item)
+                : d is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D ? System.Windows.Media.VisualTreeHelper.GetParent(d)
+                : LogicalTreeHelper.GetParent(d))
+            if (d is ComboBox { IsDropDownOpen: true }) return true;
+        return false;
     }
 
     void ShowGamePage(bool show)
@@ -152,6 +164,7 @@ public partial class MainWindow : Window
         row.ApplyStatus = "";
         row.RefreshCanApply();
         ShowGamePage(true);
+        Dispatcher.BeginInvoke(() => GoalFpsBox.Focus(), System.Windows.Threading.DispatcherPriority.Input);
     }
 
     void CloseGamePage_Click(object sender, RoutedEventArgs e) => ShowGamePage(false);
