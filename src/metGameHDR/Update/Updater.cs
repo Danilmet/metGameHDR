@@ -1,0 +1,54 @@
+using System.Reflection;
+using System.Text.Json;
+
+namespace MetGameHDR.Update;
+
+public sealed record Release(Version Version, string AssetUrl, string PageUrl);
+
+public static class Updater
+{
+    public const string Repo = "Danilmet/metGameHDR";
+
+    public static Version Current => Assembly.GetEntryAssembly()?.GetName().Version ?? new Version(0, 0, 0);
+
+#pragma warning disable IL3000 // empty Location is the signal: CoreLib is embedded only in self-contained single-file builds
+    public static bool IsSelfContained => string.IsNullOrEmpty(typeof(object).Assembly.Location);
+#pragma warning restore IL3000
+
+    public static Release? Parse(string json, Version current, bool selfContained)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            var tag = Str(root, "tag_name");
+            if (tag is not { Length: > 1 } || tag[0] != 'v') return null;
+            if (!Version.TryParse(tag[1..], out var parsed)) return null;
+
+            var version = Normalize(parsed);
+            if (version <= Normalize(current)) return null;
+
+            var suffix = selfContained ? "-win-x64-selfcontained.zip" : "-win-x64.zip";
+            if (!root.TryGetProperty("assets", out var assets)) return null;
+            foreach (var asset in assets.EnumerateArray())
+            {
+                var name = Str(asset, "name");
+                var url = Str(asset, "browser_download_url");
+                if (name is not null && url is not null && name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                    return new Release(version, url, Str(root, "html_url") ?? "");
+            }
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    // Build is -1 when the tag has fewer than three components (e.g. "v1.2").
+    static Version Normalize(Version v) => new(v.Major, v.Minor, Math.Max(v.Build, 0));
+
+    static string? Str(JsonElement e, string name) =>
+        e.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+}
