@@ -34,7 +34,9 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
                 note = "Модель указала путь вне разрешённых папок";
             }
         }
-        lib.For(game).ConfigPath = path;
+        var o = lib.For(game);
+        o.ConfigPath = path;
+        o.ConfigNote = note ?? "";
         lib.Save(libraryPath);
         return path == null
             ? new ConfigStatus(null, false, "none", note)

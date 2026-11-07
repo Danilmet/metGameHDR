@@ -137,7 +137,7 @@ public partial class MainWindow : Window
         if (GamesTab.IsChecked == true && GamePage.Visibility == Visibility.Visible)
         {
             if (InOpenDropDown(Keyboard.FocusedElement) || InOpenDropDown(e.OriginalSource)) return;
-            ShowGamePage(false);
+            if (ConfirmLeave()) ShowGamePage(false);
             e.Handled = true;
         }
         else if (GamesGrid.SelectedItems.Count > 0)
@@ -169,11 +169,15 @@ public partial class MainWindow : Window
         if ((sender as FrameworkElement)?.DataContext is not GameRow row) return;
         row.ApplyStatus = "";
         row.RefreshCanApply();
+        row.RefreshConfig();
         ShowGamePage(true);
         Dispatcher.BeginInvoke(() => GoalFpsBox.Focus(), System.Windows.Threading.DispatcherPriority.Input);
     }
 
-    void CloseGamePage_Click(object sender, RoutedEventArgs e) => ShowGamePage(false);
+    void CloseGamePage_Click(object sender, RoutedEventArgs e)
+    {
+        if (ConfirmLeave()) ShowGamePage(false);
+    }
 
     void Card_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -367,36 +371,97 @@ public partial class MainWindow : Window
         ProcessList.Pids().Select(ProcessList.Path)
             .Any(p => p != null && p.StartsWith(game.InstallDir + "\\", StringComparison.OrdinalIgnoreCase));
 
-    async void Ask_Click(object sender, RoutedEventArgs e)
+    CancellationTokenSource? asking;
+
+    void Ask_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is not GameRow row) return;
-        row.IsAsking = true;
-        row.AdviceStatus = "Запрос к Claude…";
+        if ((sender as FrameworkElement)?.DataContext is GameRow row) _ = RunAdviceAsync(row, true);
+    }
+
+    void Locate_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is GameRow row) _ = RunAdviceAsync(row, false);
+    }
+
+    // Stage 1 finds the config file (skipped for «Подобрать» when already located), stage 2 asks for advice.
+    async Task RunAdviceAsync(GameRow row, bool ask)
+    {
+        using var cts = new CancellationTokenSource();
+        asking = cts;
+        SetAsking(row, true);
+        SetStatus(row, "", "");
         try
         {
-            if (!lib.Overrides.TryGetValue(row.Game.InstallDir, out var o) || o.ConfigPath == null)
-                await advisor.LocateAsync(row.Game, CancellationToken.None);
-            await advisor.AskAsync(row.Game, row.Goal, CancellationToken.None);
-            // RebuildRows may have replaced the row during the request.
-            if (CurrentRow(row) is { } current)
+            if (!ask || !row.Located)
             {
-                current.LoadAdvice();
-                current.RefreshCanApply();
-                current.AdviceStatus = "";
-                current.ApplyStatus = "";
+                SetStatus(row, "Ищем конфиг…", "");
+                await advisor.LocateAsync(row.Game, cts.Token);
             }
+            foreach (var r in Targets(row)) r.RefreshConfig();
+            if (!ask) return;
+            if (row.ConfigMissing)
+            {
+                SetStatus(row, "", "Запустите игру один раз и повторите");
+                return;
+            }
+            SetStatus(row, "Подбираем настройки…", "");
+            await advisor.AskAsync(row.Game, row.Goal, cts.Token);
+            // RebuildRows may have replaced the row during the request.
+            foreach (var r in Targets(row))
+            {
+                r.LoadAdvice();
+                r.RefreshCanApply();
+                r.RefreshConfig();
+                r.ApplyStatus = "";
+            }
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            SetStatus(row, "", "Запрос отменён");
         }
         catch (Exception ex)
         {
             Log.Write($"Advice: {ex}");
-            var message = ex is TaskCanceledException ? "Время ожидания ответа истекло" : ex.Message;
-            row.AdviceStatus = message;
-            if (CurrentRow(row) is { } current) current.AdviceStatus = message;
+            SetStatus(row, "", ex is TaskCanceledException ? "Время ожидания ответа истекло" : ex.Message);
         }
         finally
         {
-            row.IsAsking = false;
+            asking = null;
+            SetAsking(row, false);
         }
+    }
+
+    IEnumerable<GameRow> Targets(GameRow row) =>
+        CurrentRow(row) is { } current && !ReferenceEquals(current, row) ? [row, current] : [row];
+
+    void SetStatus(GameRow row, string stage, string status)
+    {
+        foreach (var r in Targets(row))
+        {
+            r.AskStage = stage;
+            r.AdviceStatus = status;
+        }
+    }
+
+    void SetAsking(GameRow row, bool on)
+    {
+        foreach (var r in Targets(row))
+        {
+            r.IsAsking = on;
+            if (!on) r.AskStage = "";
+        }
+        SettingsTab.IsEnabled = !on;
+        SettingsTab.ToolTip = on ? "Дождитесь ответа или отмените запрос" : null;
+    }
+
+    // True when the page may be left: no request runs, or the user agreed to cancel it.
+    bool ConfirmLeave()
+    {
+        if (asking == null) return true;
+        if (MessageBox.Show(this, "Запрос к Claude ещё выполняется и будет отменён. Выйти?", "metGameHDR",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return false;
+        asking?.Cancel();
+        return true;
     }
 
     GameRow? CurrentRow(GameRow row) =>
@@ -408,9 +473,12 @@ public partial class MainWindow : Window
     void Apply_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is not GameRow { Latest: { } advice } row) return;
+        var applied = false;
         try
         {
-            row.ApplyStatus = advisor.Apply(row.Game, advice) switch
+            var outcome = advisor.Apply(row.Game, advice);
+            applied = outcome == ApplyOutcome.Applied;
+            row.ApplyStatus = outcome switch
             {
                 ApplyOutcome.Applied => "Применено",
                 ApplyOutcome.GameRunning => "Закройте игру и повторите",
@@ -427,6 +495,8 @@ public partial class MainWindow : Window
         }
         row.LoadAdvice();
         row.RefreshCanApply();
+        if (applied) row.MarkApplied();
+        row.RefreshConfig();
     }
 
     void AddRoot_Click(object sender, RoutedEventArgs e)

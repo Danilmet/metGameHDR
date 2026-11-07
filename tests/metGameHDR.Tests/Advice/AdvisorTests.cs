@@ -186,6 +186,34 @@ public class AdvisorTests
     }
 
     [Fact]
+    public async Task LocateAsync_SendsInstallRootListing()
+    {
+        using var e = new Env();
+        Directory.CreateDirectory(Path.Combine(e.Install, "Sub"));
+        Directory.CreateDirectory(Path.Combine(e.Install, "ProjectX", "Binaries"));
+        Directory.CreateDirectory(Path.Combine(e.Install, "ProjectX", "Content"));
+        File.WriteAllText(Path.Combine(e.Install, "b.txt"), "");
+
+        await e.Advisor(Locate(null, "none")).LocateAsync(e.Game, CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(e.Handler!.Body);
+        using var user = JsonDocument.Parse(doc.RootElement.GetProperty("messages")[0].GetProperty("content").GetString()!);
+        var sent = user.RootElement;
+        Assert.Equal(["a.ini", "b.txt", "ProjectX\\", "Sub\\"], sent.GetProperty("installRootEntries").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal("ProjectX", sent.GetProperty("unrealProject").GetString());
+    }
+
+    [Fact]
+    public async Task LocateAsync_StoresNote_EvenWithoutPath()
+    {
+        using var e = new Env();
+
+        await e.Advisor(Locate(null, "none")).LocateAsync(e.Game, CancellationToken.None);
+
+        Assert.Equal("n", Library.Load(e.LibPath).For(e.Game).ConfigNote);
+    }
+
+    [Fact]
     public async Task LocateAsync_PathOutsideAllowedRoots_TreatedAsNone()
     {
         using var e = new Env();

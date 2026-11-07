@@ -22,6 +22,9 @@ public sealed class GameRow : INotifyPropertyChanged
     Advice.Advice? latest;
     bool canApply;
     bool isAsking;
+    string askStage = "";
+    string configText = "", configDetail = "";
+    bool hasConfigPath, configMissing;
     string adviceStatus = "";
     string applyStatus = "";
     IReadOnlyList<AdviceRowVm> adviceRows = [];
@@ -184,6 +187,14 @@ public sealed class GameRow : INotifyPropertyChanged
     public bool HasKey => hasKey();
     public bool NoKey => !hasKey();
     public bool CanAsk => hasKey() && !isAsking;
+    public bool CanLocate => hasKey() && !isAsking;
+    public bool IsIdle => !isAsking;
+    public bool CanApplyNow => canApply && !isAsking;
+    public string ConfigText => configText;
+    public string ConfigDetail => configDetail;
+    public bool HasConfigPath => hasConfigPath;
+    public bool ConfigMissing => configMissing;
+    public bool Located => lib.Overrides.TryGetValue(Game.InstallDir, out var o) && (o.ConfigPath != null || o.ConfigNote != null);
 
     public bool IsAsking
     {
@@ -192,7 +203,18 @@ public sealed class GameRow : INotifyPropertyChanged
         {
             isAsking = value;
             Notify(nameof(IsAsking));
-            Notify(nameof(CanAsk));
+            foreach (var name in new[] { nameof(CanAsk), nameof(CanLocate), nameof(IsIdle), nameof(CanApplyNow) })
+                Notify(name);
+        }
+    }
+
+    public string AskStage
+    {
+        get => askStage;
+        set
+        {
+            askStage = value;
+            Notify(nameof(AskStage));
         }
     }
 
@@ -221,7 +243,7 @@ public sealed class GameRow : INotifyPropertyChanged
         latest = lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.Advice : null;
         canApply = false;
         adviceRows = [];
-        foreach (var name in new[] { nameof(Latest), nameof(HasAdvice), nameof(AdviceSummary), nameof(AdviceRows), nameof(AdviceHeading), nameof(OptimizedText), nameof(AdviceNotes), nameof(AdviceAt), nameof(CanApply), nameof(GoalFps), nameof(GoalPriority) })
+        foreach (var name in new[] { nameof(Latest), nameof(HasAdvice), nameof(AdviceSummary), nameof(AdviceRows), nameof(AdviceHeading), nameof(OptimizedText), nameof(AdviceNotes), nameof(AdviceAt), nameof(CanApply), nameof(CanApplyNow), nameof(GoalFps), nameof(GoalPriority) })
             Notify(name);
     }
 
@@ -242,7 +264,31 @@ public sealed class GameRow : INotifyPropertyChanged
         }
         adviceRows = BuildRows();
         Notify(nameof(CanApply));
+        Notify(nameof(CanApplyNow));
         Notify(nameof(AdviceRows));
+    }
+
+    public void MarkApplied()
+    {
+        adviceRows = adviceRows.Select(r => r.IsConfig ? r with { Current = r.Recommended } : r).ToList();
+        Notify(nameof(AdviceRows));
+    }
+
+    // Touches the file system, so it runs when the page opens and after locate/ask/apply.
+    public void RefreshConfig()
+    {
+        var path = Advisor.LocatedPath(lib, roots, Game);
+        var note = lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.ConfigNote ?? "" : "";
+        hasConfigPath = path != null;
+        configMissing = path != null && !File.Exists(path);
+        (configText, configDetail) = path != null
+            ? configMissing
+                ? ("Конфиг ещё не создан: запустите игру один раз, выйдите и нажмите «Подобрать» снова", path)
+                : ($"Конфиг: {path}", "")
+            : Located ? ("У игры нет текстового конфига — настройки только для меню игры", note)
+            : ("Конфиг: будет найден при подборе", "");
+        foreach (var name in new[] { nameof(ConfigText), nameof(ConfigDetail), nameof(HasConfigPath), nameof(ConfigMissing) })
+            Notify(name);
     }
 
     List<AdviceRowVm> BuildRows() =>
@@ -250,7 +296,7 @@ public sealed class GameRow : INotifyPropertyChanged
 
     public void NotifyDefaultsChanged()
     {
-        foreach (var name in new[] { nameof(FpsHint), nameof(GoalPriority), nameof(HasKey), nameof(NoKey), nameof(CanAsk) })
+        foreach (var name in new[] { nameof(FpsHint), nameof(GoalPriority), nameof(HasKey), nameof(NoKey), nameof(CanAsk), nameof(CanLocate) })
             Notify(name);
     }
 

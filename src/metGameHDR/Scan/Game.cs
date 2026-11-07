@@ -19,4 +19,6 @@ public sealed class GameOverride
     public Advice.Advice? Advice { get; set; }
     // Absolute path chosen by the model; null = not located yet.
     public string? ConfigPath { get; set; }
+    // The model's note from the locate step ("" = located, no note). Located = ConfigPath != null || ConfigNote != null.
+    public string? ConfigNote { get; set; }
 }
