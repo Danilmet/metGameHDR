@@ -110,6 +110,10 @@ public static class ConfigFinder
         return names.Select(Normalize).Any(x => x.Length >= 4 && (x.Contains(n) || n.Contains(x)));
     }
 
+    public static string? UnrealProject(string installDir) => SafeDirs(installDir).Order(StringComparer.OrdinalIgnoreCase)
+        .Where(p => Directory.Exists(Path.Combine(p, "Binaries")) && Directory.Exists(Path.Combine(p, "Content")))
+        .Select(p => Path.GetFileName(p)).FirstOrDefault();
+
     private static IEnumerable<string> UnrealSettings(string projectDir)
     {
         foreach (var platform in SafeDirs(Path.Combine(projectDir, "Saved", "Config")))

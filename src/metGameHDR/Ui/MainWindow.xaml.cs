@@ -374,6 +374,8 @@ public partial class MainWindow : Window
         row.AdviceStatus = "Запрос к Claude…";
         try
         {
+            if (!lib.Overrides.TryGetValue(row.Game.InstallDir, out var o) || o.ConfigPath == null)
+                await advisor.LocateAsync(row.Game, CancellationToken.None);
             await advisor.AskAsync(row.Game, row.Goal, CancellationToken.None);
             // RebuildRows may have replaced the row during the request.
             if (CurrentRow(row) is { } current)
@@ -405,7 +407,7 @@ public partial class MainWindow : Window
 
     void Apply_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is not GameRow { Latest: { Result.Config: not null } advice } row) return;
+        if ((sender as FrameworkElement)?.DataContext is not GameRow { Latest: { } advice } row) return;
         try
         {
             row.ApplyStatus = advisor.Apply(row.Game, advice) switch
@@ -413,7 +415,6 @@ public partial class MainWindow : Window
                 ApplyOutcome.Applied => "Применено",
                 ApplyOutcome.GameRunning => "Закройте игру и повторите",
                 ApplyOutcome.FileMissing => "Файл не найден",
-                ApplyOutcome.PathNotCandidate => "Файл не относится к настройкам этой игры",
                 ApplyOutcome.NotIni => "Файл не в формате INI",
                 ApplyOutcome.BadEdit => "Некорректные правки в ответе",
                 _ => "Нет файла для записи",

@@ -176,7 +176,7 @@ public sealed class GameRow : INotifyPropertyChanged
     public bool HasAdvice => latest != null;
     public string AdviceSummary => latest?.Result.Summary ?? "";
     public IReadOnlyList<AdviceRowVm> AdviceRows => adviceRows;
-    public string AdviceHeading => latest?.Result.Config is { Edits.Count: > 0 } ? "Рекомендуемые настройки:" : "Выставить в меню игры:";
+    public string AdviceHeading => latest != null && Advisor.Edits(latest.Result).Count > 0 ? "Рекомендуемые настройки:" : "Выставить в меню игры:";
     public string OptimizedText => latest is null ? "Настройки не подобраны" : $"Настройки подобраны {AdviceAt}";
     public string AdviceNotes => latest?.Result.Notes ?? "";
     public string AdviceAt => latest is null ? "" : latest.At.ToLocalTime().ToString("dd.MM HH:mm");
@@ -225,18 +225,18 @@ public sealed class GameRow : INotifyPropertyChanged
             Notify(name);
     }
 
-    // Reads config files, so it runs when the row is selected or its advice changes, not for every row at startup.
+    // Reads the config file, so it runs when the row is selected or its advice changes, not for every row at startup.
     public void RefreshCanApply()
     {
         canApply = false;
-        if (latest?.Result.Config is { Edits.Count: > 0 } config)
+        if (latest != null && Advisor.Edits(latest.Result) is { Count: > 0 } edits)
         {
             try
             {
-                canApply = Advisor.EditsValid(config)
-                    && Advisor.IsCandidate(Advisor.EffectiveGame(lib, Game), roots, config.Path)
-                    && File.Exists(config.Path)
-                    && Advisor.CanWrite(File.ReadAllText(config.Path), config.Edits);
+                canApply = Advisor.EditsValid(edits)
+                    && Advisor.LocatedPath(lib, roots, Game) is { } path
+                    && File.Exists(path)
+                    && Advisor.CanWrite(File.ReadAllText(path), edits);
             }
             catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException) { }
         }
@@ -245,22 +245,8 @@ public sealed class GameRow : INotifyPropertyChanged
         Notify(nameof(AdviceRows));
     }
 
-    // The config file is read only once it passed the candidate check; otherwise the model-supplied path stays untouched.
-    List<AdviceRowVm> BuildRows()
-    {
-        var rows = new List<AdviceRowVm>();
-        if (latest is null) return rows;
-        if (latest.Result.Config is { } config)
-        {
-            var edits = canApply
-                ? Advisor.Preview(latest).Select(p => (p.Edit, Current: p.Current ?? "нет"))
-                : config.Edits.Select(e => (Edit: e, Current: "—"));
-            foreach (var (edit, current) in edits)
-                rows.Add(new(edit.Section is null ? edit.Key : $"[{edit.Section}] {edit.Key}", current, edit.Value, "", true));
-        }
-        rows.AddRange(latest.Result.Settings.Select(s => new AdviceRowVm(s.Name, "—", s.Value, s.Reason, false)));
-        return rows;
-    }
+    List<AdviceRowVm> BuildRows() =>
+        latest?.Result.Settings.Select(s => new AdviceRowVm(s.Name, s.Current ?? "—", s.Recommended, s.Reason, s.Key != null)).ToList() ?? [];
 
     public void NotifyDefaultsChanged()
     {

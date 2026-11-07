@@ -147,6 +147,20 @@ public class ConfigFinderTests
     }
 
     [Fact]
+    public void UnrealProject_ReturnsFirstFolderWithBinariesAndContent()
+    {
+        WithTemp(dir =>
+        {
+            Directory.CreateDirectory(Path.Combine(dir, "Engine", "Binaries"));
+            Directory.CreateDirectory(Path.Combine(dir, "ProjectPBZ", "Binaries"));
+            Directory.CreateDirectory(Path.Combine(dir, "ProjectPBZ", "Content"));
+
+            Assert.Equal("ProjectPBZ", ConfigFinder.UnrealProject(dir));
+            Assert.Null(ConfigFinder.UnrealProject(Path.Combine(dir, "none")));
+        });
+    }
+
+    [Fact]
     public void Find_PublisherSubfolderMatchingExeName_FindsIni()
     {
         WithTemp(dir =>
