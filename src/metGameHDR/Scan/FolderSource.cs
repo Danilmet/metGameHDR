@@ -20,7 +20,7 @@ public sealed class FolderSource(IEnumerable<string> roots) : IGameSource
                 string? exe;
                 try { exe = MainExe.Pick(dir, name); }
                 catch (Exception e) when (e is UnauthorizedAccessException or IOException) { continue; }
-                if (exe is not null) yield return new Game(name, dir, GameSource.Folder, exe);
+                yield return new Game(name, dir, GameSource.Folder, exe);
             }
         }
     }

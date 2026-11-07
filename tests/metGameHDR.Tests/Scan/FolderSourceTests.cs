@@ -8,11 +8,13 @@ public class FolderSourceTests : TempFsTest
     private string? _denied;
 
     [Fact]
-    public void Scan_SkipsFoldersWithoutExe()
+    public void Scan_KeepsFoldersWithoutRootExe()
     {
-        var root = TempDir(); Directory.CreateDirectory(Path.Combine(root, "Saves")); var g = Path.Combine(root, "Control"); Touch(g, "Control.exe", 1);
-        var games = new FolderSource([root, @"C:\nope\" + Guid.NewGuid()]).Scan().ToList();
-        Assert.Single(games); Assert.Equal("Control", games[0].Name); Assert.Equal(Path.Combine(g, "Control.exe"), games[0].MainExe);
+        var root = TempDir(); var saves = Path.Combine(root, "Saves"); Directory.CreateDirectory(saves); var g = Path.Combine(root, "Control"); Touch(g, "Control.exe", 1);
+        var games = new FolderSource([root, @"C:\nope\" + Guid.NewGuid()]).Scan().OrderBy(x => x.Name).ToList();
+        Assert.Equal(2, games.Count);
+        Assert.Equal("Control", games[0].Name); Assert.Equal(Path.Combine(g, "Control.exe"), games[0].MainExe);
+        Assert.Equal("Saves", games[1].Name); Assert.Equal(saves, games[1].InstallDir); Assert.Null(games[1].MainExe);
     }
 
     [Fact]
