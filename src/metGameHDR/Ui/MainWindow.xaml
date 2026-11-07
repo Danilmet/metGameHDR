@@ -64,28 +64,25 @@
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold"/>
-                                        <Border Grid.Column="1" Margin="6,0,0,0" Padding="4,0" CornerRadius="4" HorizontalAlignment="Right" VerticalAlignment="Center" BorderThickness="1" Visibility="{Binding SteamApplies, Converter={StaticResource BoolToVisibility}}">
+                                        <Border Grid.Column="1" Margin="6,0,0,0" Padding="4,0" CornerRadius="4" HorizontalAlignment="Right" VerticalAlignment="Center" BorderThickness="1" BorderBrush="{DynamicResource TextSecondary}" Opacity="0.85">
                                             <Border.Style>
                                                 <Style TargetType="Border">
-                                                    <Setter Property="BorderBrush" Value="White"/>
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding SteamAdded}" Value="False">
-                                                            <Setter Property="BorderBrush" Value="{DynamicResource TextSecondary}"/>
-                                                            <Setter Property="Opacity" Value="0.85"/>
-                                                        </DataTrigger>
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding SteamApplies}" Value="True"/>
+                                                                <Condition Binding="{Binding SteamAdded}" Value="False"/>
+                                                            </MultiDataTrigger.Conditions>
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </MultiDataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
-                                            <TextBlock Text="Steam" FontSize="9" FontWeight="Bold">
+                                            <TextBlock Text="Steam" FontSize="9" FontWeight="Bold" TextDecorations="Strikethrough">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                                        <Setter Property="Foreground" Value="White"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding SteamAdded}" Value="False">
-                                                                <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-                                                                <Setter Property="TextDecorations" Value="Strikethrough"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
@@ -96,28 +93,25 @@
                                         CornerRadius="999" Background="#99000000">
                                     <TextBlock Text="{Binding Source}" Foreground="White" FontSize="10"/>
                                 </Border>
-                                <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6" Padding="5,1" CornerRadius="4" Background="#B3000000" IsHitTestVisible="False" BorderThickness="1.5" Visibility="{Binding HdrApplies, Converter={StaticResource BoolToVisibility}}">
+                                <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6" Padding="5,1" CornerRadius="4" Background="#B3000000" IsHitTestVisible="False" BorderThickness="1.5" BorderBrush="{DynamicResource TextSecondary}" Opacity="0.85">
                                     <Border.Style>
                                         <Style TargetType="Border">
-                                            <Setter Property="BorderBrush" Value="White"/>
+                                            <Setter Property="Visibility" Value="Collapsed"/>
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding HdrEnabled}" Value="False">
-                                                    <Setter Property="BorderBrush" Value="{DynamicResource TextSecondary}"/>
-                                                    <Setter Property="Opacity" Value="0.85"/>
-                                                </DataTrigger>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding HdrApplies}" Value="True"/>
+                                                        <Condition Binding="{Binding HdrEnabled}" Value="False"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </MultiDataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>
-                                    <TextBlock Text="HDR" FontSize="10" FontWeight="Bold">
+                                    <TextBlock Text="HDR" FontSize="10" FontWeight="Bold" TextDecorations="Strikethrough">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                                <Setter Property="Foreground" Value="White"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HdrEnabled}" Value="False">
-                                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-                                                        <Setter Property="TextDecorations" Value="Strikethrough"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
+                                                <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
