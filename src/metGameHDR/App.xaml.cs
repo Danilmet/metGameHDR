@@ -9,6 +9,10 @@ namespace MetGameHDR;
 
 public partial class App : Application
 {
+    const string ShowEventName = @"Local\metGameHDR.Show";
+    static Mutex? instance;
+    HdrController? controller;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -18,25 +22,55 @@ public partial class App : Application
             Shutdown(0);
             return;
         }
+        instance = new Mutex(false, @"Local\metGameHDR", out var first);
+        if (!first)
+        {
+            using var show = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
+            show.Set();
+            Shutdown(0);
+            return;
+        }
         StartTray(showWindow: !e.Args.Contains("--tray"));
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        FinishHdr();
+        base.OnExit(e);
+    }
+
+    void FinishHdr()
+    {
+        try { controller?.Finish(); }
+        catch (Exception ex) { Log.Write($"Exit: {ex}"); }
     }
 
     void StartTray(bool showWindow)
     {
+        DispatcherUnhandledException += (_, a) =>
+        {
+            Log.Write($"Unhandled: {a.Exception}");
+            a.Handled = true;
+        };
+        SessionEnding += (_, _) => FinishHdr();
+
         var settings = Settings.Load(AppPaths.SettingsFile);
         var lib = Library.Load(AppPaths.LibraryFile);
         var hdr = new DisplayConfigHdr();
         var watcher = new ProcessWatcher(lib, ProcessList.Pids, ProcessList.Path);
-        var controller = new HdrController(hdr, () => settings.TurnOffHdrOnExit, TimeSpan.FromSeconds(3));
+        var controller = this.controller = new HdrController(hdr, () => settings.TurnOffHdrOnExit, TimeSpan.FromSeconds(3));
         var window = new MainWindow(settings, lib, watcher.Reset);
+
+        var show = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
+        new Thread(() => { while (show.WaitOne()) Dispatcher.InvokeAsync(window.ShowFromTray); }) { IsBackground = true }.Start();
+
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         string? lastError = null;
         Tray? tray = null;
         tray = new Tray(window.ShowFromTray, () =>
         {
             timer.Stop();
-            try { controller.Finish(); }
-            catch (Exception ex) { Log.Write($"Exit: {ex}"); }
+            FinishHdr();
             tray!.Dispose();
             Shutdown();
         });
@@ -46,6 +80,7 @@ public partial class App : Application
             {
                 if (!tray.Paused) controller.Update(watcher.Tick(), DateTime.UtcNow);
                 tray.SetHdr(hdr.IsEnabled() == true);
+                lastError = null;
             }
             catch (Exception ex)
             {
