@@ -1,6 +1,7 @@
 <Window x:Class="MetGameHDR.Ui.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:adv="clr-namespace:MetGameHDR.Advice"
         Title="metGameHDR" Width="1100" Height="680" MinWidth="820" MinHeight="520"
         Style="{StaticResource {x:Type Window}}" Background="Transparent"
         PreviewKeyDown="Window_PreviewKeyDown">
@@ -159,6 +160,62 @@
                               Text="{Binding MainExe, UpdateSourceTrigger=PropertyChanged}"/>
                     <TextBlock Text="Имя для поиска" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
                     <TextBox Text="{Binding SearchName, UpdateSourceTrigger=PropertyChanged}"/>
+                    <TextBlock Text="Графика" FontWeight="SemiBold" Margin="0,18,0,0"/>
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="60"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="FPS" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{DynamicResource TextSecondary}"/>
+                        <TextBox x:Name="GoalFpsBox" Grid.Column="1" Text="{Binding GoalFps, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Grid.Column="1" Text="{Binding FpsHint, Mode=OneWay}" Margin="9,0,0,0" VerticalAlignment="Center"
+                                   IsHitTestVisible="False" Foreground="{DynamicResource TextSecondary}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=GoalFpsBox}" Value="">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                    <ComboBox Margin="0,8,0,0" SelectedValuePath="Tag" SelectedValue="{Binding GoalPriority}">
+                        <ComboBoxItem Content="Картинка" Tag="{x:Static adv:Priority.Quality}"/>
+                        <ComboBoxItem Content="Баланс" Tag="{x:Static adv:Priority.Balanced}"/>
+                        <ComboBoxItem Content="Отзывчивость" Tag="{x:Static adv:Priority.Responsive}"/>
+                    </ComboBox>
+                    <Button Content="Подобрать" Margin="0,10,0,0" Style="{StaticResource AccentButton}" Click="Ask_Click"
+                            IsEnabled="{Binding CanAsk}"
+                            Visibility="{Binding HasKey, Converter={StaticResource BoolToVisibility}}"/>
+                    <TextBlock Text="Укажите ключ Claude в настройках" Margin="0,10,0,0" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextSecondary}"
+                               Visibility="{Binding NoKey, Converter={StaticResource BoolToVisibility}}"/>
+                    <StackPanel Visibility="{Binding HasAdvice, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding AdviceSummary, Mode=OneWay}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                        <ScrollViewer MaxHeight="240" Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding AdviceItems}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,0,0,6">
+                                            <TextBlock TextWrapping="Wrap">
+                                                <Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold"/><Run Text=" — "/><Run Text="{Binding Value, Mode=OneWay}"/>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding Reason, Mode=OneWay}" FontSize="11" TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextSecondary}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <TextBlock Text="{Binding AdviceAt, Mode=OneWay}" FontSize="10" Margin="0,2,0,0"
+                                   Foreground="{DynamicResource TextSecondary}"/>
+                        <Button Content="Применить" Margin="0,10,0,0" Click="Apply_Click" IsEnabled="{Binding CanApply}"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding AdviceStatus, Mode=OneWay}" Margin="0,8,0,0" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextSecondary}"/>
                 </StackPanel>
             </Border>
 
@@ -209,6 +266,21 @@
                         <TextBlock Text="SteamGridDB" FontWeight="SemiBold"/>
                         <TextBlock Text="Ключ API" Margin="0,8,0,4" Foreground="{DynamicResource TextSecondary}"/>
                         <TextBox x:Name="KeyBox"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardSurface}" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Claude" FontWeight="SemiBold"/>
+                        <TextBlock Text="Ключ API" Margin="0,8,0,4" Foreground="{DynamicResource TextSecondary}"/>
+                        <TextBox x:Name="ClaudeKeyBox"/>
+                        <TextBlock Text="FPS по умолчанию (пусто — частота монитора)" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
+                        <TextBox x:Name="DefaultFpsBox" Width="60" HorizontalAlignment="Left"/>
+                        <TextBlock Text="Приоритет по умолчанию" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
+                        <ComboBox x:Name="DefaultPriorityBox" Width="200" HorizontalAlignment="Left" SelectedValuePath="Tag">
+                            <ComboBoxItem Content="Картинка" Tag="{x:Static adv:Priority.Quality}"/>
+                            <ComboBoxItem Content="Баланс" Tag="{x:Static adv:Priority.Balanced}"/>
+                            <ComboBoxItem Content="Отзывчивость" Tag="{x:Static adv:Priority.Responsive}"/>
+                        </ComboBox>
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource CardSurface}" Margin="0,10,0,0">

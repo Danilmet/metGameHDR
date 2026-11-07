@@ -5,8 +5,10 @@ using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using MetGameHDR.Advice;
 using MetGameHDR.Scan;
 using MetGameHDR.Steam;
+using MetGameHDR.Watch;
 using Forms = System.Windows.Forms;
 
 namespace MetGameHDR.Ui;
@@ -15,8 +17,13 @@ public partial class MainWindow : Window
 {
     static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
+    static readonly HttpClient ClaudeHttp = new() { Timeout = TimeSpan.FromMinutes(3) };
+
     readonly Settings settings;
     readonly Library lib;
+    readonly Advisor advisor;
+    readonly FinderRoots roots = FinderRoots.Default();
+    readonly int monitorHz = Math.Max(Hardware.Detect().Hz, 60);
     readonly Action onLibraryChanged;
     readonly ObservableCollection<GameRow> rows = [];
     readonly Covers covers = new(Http, AppPaths.CoversDir);
@@ -29,11 +36,15 @@ public partial class MainWindow : Window
         this.settings = settings;
         this.lib = lib;
         this.onLibraryChanged = onLibraryChanged;
+        advisor = new Advisor(() => settings.ClaudeApiKey, lib, AppPaths.LibraryFile, Hardware.Detect, roots, IsRunning, ClaudeHttp);
         InitializeComponent();
 
         GamesGrid.ItemsSource = rows;
         RootsList.ItemsSource = settings.FolderRoots;
         KeyBox.Text = settings.SteamGridDbKey ?? "";
+        ClaudeKeyBox.Text = settings.ClaudeApiKey ?? "";
+        DefaultFpsBox.Text = settings.DefaultFps?.ToString() ?? "";
+        DefaultPriorityBox.SelectedValue = settings.DefaultPriority;
         AutostartBox.IsChecked = Autostart.IsEnabled();
         TurnOffBox.IsChecked = settings.TurnOffHdrOnExit;
         var steam = SteamLocator.SteamPath();
@@ -49,6 +60,28 @@ public partial class MainWindow : Window
         {
             settings.SteamGridDbKey = KeyBox.Text.Trim() is { Length: > 0 } key ? key : null;
             SaveSettings();
+        };
+        ClaudeKeyBox.TextChanged += (_, _) =>
+        {
+            settings.ClaudeApiKey = ClaudeKeyBox.Text.Trim() is { Length: > 0 } key ? key : null;
+            SaveSettings();
+            NotifyDefaultsChanged();
+        };
+        DefaultFpsBox.TextChanged += (_, _) =>
+        {
+            var text = DefaultFpsBox.Text.Trim();
+            if (text.Length == 0) settings.DefaultFps = null;
+            else if (int.TryParse(text, out var fps) && fps > 0) settings.DefaultFps = fps;
+            else return;
+            SaveSettings();
+            NotifyDefaultsChanged();
+        };
+        DefaultPriorityBox.SelectionChanged += (_, _) =>
+        {
+            if (DefaultPriorityBox.SelectedValue is not Priority priority) return;
+            settings.DefaultPriority = priority;
+            SaveSettings();
+            NotifyDefaultsChanged();
         };
         SteamUserBox.SelectionChanged += (_, _) =>
         {
@@ -141,7 +174,7 @@ public partial class MainWindow : Window
             var status = shortcuts != null && g.Source is GameSource.Folder or GameSource.App
                 ? SteamAdder.StatusOf(g, shortcuts, gridDir!)
                 : (SteamStatus?)null;
-            rows.Add(new GameRow(g, lib, status, onLibraryChanged));
+            rows.Add(new GameRow(g, lib, status, onLibraryChanged, roots, DefaultGoal, () => !string.IsNullOrWhiteSpace(settings.ClaudeApiKey)));
         }
         // Covers are decoded on the UI thread, so a hidden window (--tray autostart) waits until it is first shown.
         pendingCovers = () => LoadCovers(steam, shortcuts, gridDir);
@@ -271,6 +304,63 @@ public partial class MainWindow : Window
             addingToSteam = false;
             UpdateButtons();
         }
+    }
+
+    GraphicsGoal DefaultGoal() => new(settings.DefaultFps ?? monitorHz, settings.DefaultPriority);
+
+    void NotifyDefaultsChanged()
+    {
+        foreach (var row in rows) row.NotifyDefaultsChanged();
+    }
+
+    static bool IsRunning(Game game) =>
+        ProcessList.Pids().Select(ProcessList.Path)
+            .Any(p => p != null && p.StartsWith(game.InstallDir + "\\", StringComparison.OrdinalIgnoreCase));
+
+    async void Ask_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not GameRow row) return;
+        row.IsAsking = true;
+        row.AdviceStatus = "Запрос к Claude…";
+        try
+        {
+            await advisor.AskAsync(row.Game, row.Goal, CancellationToken.None);
+            row.LoadAdvice();
+            row.AdviceStatus = "";
+        }
+        catch (Exception ex) when (ex is AdviceException or HttpRequestException or TaskCanceledException)
+        {
+            Log.Write($"Advice: {ex}");
+            row.AdviceStatus = ex is TaskCanceledException ? "Время ожидания ответа истекло" : ex.Message;
+        }
+        finally
+        {
+            row.IsAsking = false;
+        }
+    }
+
+    void Apply_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not GameRow { Latest: { } advice } row) return;
+        var dialog = new ApplyDialog(advisor.Preview(row.Game, advice)) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            row.AdviceStatus = advisor.Apply(row.Game, advice) switch
+            {
+                ApplyOutcome.Applied => "Применено",
+                ApplyOutcome.GameRunning => "Закройте игру и повторите",
+                ApplyOutcome.FileMissing => "Файл не найден",
+                ApplyOutcome.PathNotCandidate => "Файл не относится к настройкам этой игры",
+                _ => "Нет файла для записи",
+            };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Write($"Apply advice: {ex}");
+            row.AdviceStatus = ex.Message;
+        }
+        row.LoadAdvice();
     }
 
     void AddRoot_Click(object sender, RoutedEventArgs e)

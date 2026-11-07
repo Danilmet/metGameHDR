@@ -1,5 +1,7 @@
 using System.ComponentModel;
+using System.IO;
 using System.Windows.Media;
+using MetGameHDR.Advice;
 using MetGameHDR.Scan;
 using MetGameHDR.Steam;
 
@@ -12,13 +14,25 @@ public sealed class GameRow : INotifyPropertyChanged
     SteamStatus? steamStatus;
     ImageSource? cover;
     ImageSource? icon;
+    readonly FinderRoots roots;
+    readonly Func<GraphicsGoal> defaultGoal;
+    readonly Func<bool> hasKey;
+    Advice.Advice? latest;
+    bool canApply;
+    bool isAsking;
+    string adviceStatus = "";
 
-    public GameRow(Game game, Library lib, SteamStatus? steamStatus, Action onHdrChanged)
+    public GameRow(Game game, Library lib, SteamStatus? steamStatus, Action onHdrChanged,
+        FinderRoots roots, Func<GraphicsGoal> defaultGoal, Func<bool> hasKey)
     {
         Game = game;
         this.lib = lib;
         this.steamStatus = steamStatus;
         this.onHdrChanged = onHdrChanged;
+        this.roots = roots;
+        this.defaultGoal = defaultGoal;
+        this.hasKey = hasKey;
+        LoadAdvice();
         ExeCandidates = game.Source == GameSource.Folder ? Scan.MainExe.Candidates(game.InstallDir)
             : game.MainExe != null ? [game.MainExe] : Array.Empty<string>();
     }
@@ -115,6 +129,96 @@ public sealed class GameRow : INotifyPropertyChanged
     }
 
     public void SetCover(ImageSource? cover) => Cover = cover;
+
+    GraphicsGoal? GoalOverride => lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.Goal : null;
+
+    public GraphicsGoal Goal => GoalOverride ?? defaultGoal();
+
+    public string GoalFps
+    {
+        get => GoalOverride?.Fps.ToString() ?? "";
+        set
+        {
+            var text = value.Trim();
+            if (text.Length == 0)
+            {
+                if (GoalOverride is null) return;
+                lib.For(Game).Goal = null;
+                Save();
+                Notify(nameof(GoalPriority));
+                return;
+            }
+            if (!int.TryParse(text, out var fps) || fps <= 0 || fps == GoalOverride?.Fps) return;
+            lib.For(Game).Goal = new GraphicsGoal(fps, Goal.Priority);
+            Save();
+        }
+    }
+
+    public string FpsHint => defaultGoal().Fps.ToString();
+
+    public Priority GoalPriority
+    {
+        get => Goal.Priority;
+        set
+        {
+            if (value == Goal.Priority) return;
+            lib.For(Game).Goal = new GraphicsGoal(Goal.Fps, value);
+            Save();
+            Notify(nameof(GoalFps));
+        }
+    }
+
+    public Advice.Advice? Latest => latest;
+    public bool HasAdvice => latest != null;
+    public string AdviceSummary => latest?.Result.Summary ?? "";
+    public IReadOnlyList<SettingAdvice> AdviceItems => latest?.Result.Settings ?? [];
+    public string AdviceAt => latest is null ? "" : latest.At.ToLocalTime().ToString("dd.MM HH:mm");
+    public bool CanApply => canApply;
+    public bool HasKey => hasKey();
+    public bool NoKey => !hasKey();
+    public bool CanAsk => hasKey() && !isAsking;
+
+    public bool IsAsking
+    {
+        get => isAsking;
+        set
+        {
+            isAsking = value;
+            Notify(nameof(IsAsking));
+            Notify(nameof(CanAsk));
+        }
+    }
+
+    public string AdviceStatus
+    {
+        get => adviceStatus;
+        set
+        {
+            adviceStatus = value;
+            Notify(nameof(AdviceStatus));
+        }
+    }
+
+    public void LoadAdvice()
+    {
+        latest = lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.Advice : null;
+        canApply = false;
+        if (latest?.Result.Config?.Path is { } path)
+        {
+            try { canApply = Advisor.IsCandidate(Game, roots, path) && File.Exists(path); }
+            catch (ArgumentException) { }
+        }
+        foreach (var name in new[] { nameof(Latest), nameof(HasAdvice), nameof(AdviceSummary), nameof(AdviceItems), nameof(AdviceAt), nameof(CanApply), nameof(GoalFps), nameof(GoalPriority) })
+            Notify(name);
+    }
+
+    public void NotifyDefaultsChanged()
+    {
+        foreach (var name in new[] { nameof(FpsHint), nameof(GoalPriority), nameof(HasKey), nameof(NoKey), nameof(CanAsk) })
+            Notify(name);
+    }
+
+    void Notify(string name) => PropertyChanged?.Invoke(this, new(name));
 
     void Save() => lib.Save(AppPaths.LibraryFile);
 }
