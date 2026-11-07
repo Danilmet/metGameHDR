@@ -15,7 +15,7 @@ public class EpicSourceTests
     public void Scan_ParsesItemManifests()
     {
         var dir = TempDir();
-        File.WriteAllText(Path.Combine(dir, "a.item"), """{"DisplayName":"Fortnite","InstallLocation":"C:\Epic\Fortnite","LaunchExecutable":"FortniteGame\Binaries\Win64\Fortnite.exe"}""");
+        File.WriteAllText(Path.Combine(dir, "a.item"), """{"DisplayName":"Fortnite","InstallLocation":"C:\\Epic\\Fortnite","LaunchExecutable":"FortniteGame\\Binaries\\Win64\\Fortnite.exe"}""");
         var g = new EpicSource(dir).Scan().Single();
         Assert.Equal("Fortnite", g.Name);
         Assert.Equal(GameSource.Epic, g.Source);
@@ -31,7 +31,7 @@ public class EpicSourceTests
         var dir = TempDir();
         File.WriteAllText(Path.Combine(dir, "bad.item"), "{not json");
         File.WriteAllText(Path.Combine(dir, "partial.item"), """{"DisplayName":"X"}""");
-        File.WriteAllText(Path.Combine(dir, "ok.item"), """{"DisplayName":"Y","InstallLocation":"C:\Epic\Y\\","LaunchExecutable":"y.exe"}""");
+        File.WriteAllText(Path.Combine(dir, "ok.item"), """{"DisplayName":"Y","InstallLocation":"C:\\Epic\\Y\\","LaunchExecutable":"y.exe"}""");
         var g = new EpicSource(dir).Scan().Single();
         Assert.Equal(@"C:\Epic\Y", g.InstallDir);
         Assert.Equal(@"C:\Epic\Y\y.exe", g.MainExe);

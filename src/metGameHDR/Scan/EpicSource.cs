@@ -31,7 +31,7 @@ public sealed class EpicSource(string manifestsDir) : IGameSource
             var dir = Str(root, "InstallLocation");
             var exe = Str(root, "LaunchExecutable");
             if (name == null || dir == null || exe == null) return null;
-            dir = dir.TrimEnd('\', '/');
+            dir = Path.TrimEndingDirectorySeparator(dir);
             return new Game(name, dir, GameSource.Epic, Path.Combine(dir, exe));
         }
         catch (Exception e) when (e is JsonException or IOException or InvalidOperationException or UnauthorizedAccessException)
