@@ -1,3 +1,5 @@
+using System.IO;
+using System.IO.Compression;
 using System.Reflection;
 using System.Text.Json;
 
@@ -44,6 +46,35 @@ public static class Updater
         {
             return null;
         }
+    }
+
+    public static string Extract(string zipPath, string dir)
+    {
+        ZipFile.ExtractToDirectory(zipPath, dir, overwriteFiles: true);
+        var found = Directory.GetFiles(dir, "metGameHDR.exe", SearchOption.AllDirectories);
+        return found.Length > 0 ? found[0] : throw new FileNotFoundException($"metGameHDR.exe not found in {zipPath}", zipPath);
+    }
+
+    public static void Swap(string exe, string newExe)
+    {
+        var old = exe + ".old";
+        File.Move(exe, old, overwrite: true);
+        try
+        {
+            File.Move(newExe, exe);
+        }
+        catch
+        {
+            File.Move(old, exe, overwrite: true);
+            throw;
+        }
+    }
+
+    public static void Cleanup(string exe, string updateDir)
+    {
+        // Ignored: a file still locked by the old process is harmless and is removed on the next update.
+        try { File.Delete(exe + ".old"); } catch (Exception) { }
+        try { Directory.Delete(updateDir, recursive: true); } catch (Exception) { }
     }
 
     // Build is -1 when the tag has fewer than three components (e.g. "v1.2").

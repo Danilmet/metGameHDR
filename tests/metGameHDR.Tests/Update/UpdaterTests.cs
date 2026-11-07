@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text.Json;
 using MetGameHDR.Update;
 
@@ -74,5 +75,133 @@ public class UpdaterTests
         var r = Updater.Parse("{", new Version(0, 1, 0, 0), selfContained: false);
 
         Assert.Null(r);
+    }
+
+    [Fact]
+    public void Extract_ZipWithExe_ReturnsExePath()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        try
+        {
+            var staging = Path.Combine(root, "staging");
+            Directory.CreateDirectory(staging);
+            File.WriteAllText(Path.Combine(staging, "metGameHDR.exe"), "new");
+            var zip = Path.Combine(root, "update.zip");
+            ZipFile.CreateFromDirectory(staging, zip);
+
+            var exe = Updater.Extract(zip, Path.Combine(root, "out"));
+
+            Assert.True(File.Exists(exe));
+            Assert.Equal("metGameHDR.exe", Path.GetFileName(exe));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Extract_ZipWithoutExe_Throws()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        try
+        {
+            var staging = Path.Combine(root, "staging");
+            Directory.CreateDirectory(staging);
+            File.WriteAllText(Path.Combine(staging, "readme.txt"), "x");
+            var zip = Path.Combine(root, "update.zip");
+            ZipFile.CreateFromDirectory(staging, zip);
+
+            Assert.Throws<FileNotFoundException>(() => Updater.Extract(zip, Path.Combine(root, "out")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Swap_ReplacesExeAndKeepsOld()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        try
+        {
+            Directory.CreateDirectory(root);
+            var exe = Path.Combine(root, "app.exe");
+            var newExe = Path.Combine(root, "new.exe");
+            File.WriteAllText(exe, "old");
+            File.WriteAllText(newExe, "new");
+
+            Updater.Swap(exe, newExe);
+
+            Assert.Equal("new", File.ReadAllText(exe));
+            Assert.Equal("old", File.ReadAllText(exe + ".old"));
+            Assert.False(File.Exists(newExe));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Swap_MissingNew_RestoresOld()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        try
+        {
+            Directory.CreateDirectory(root);
+            var exe = Path.Combine(root, "app.exe");
+            File.WriteAllText(exe, "old");
+
+            Assert.ThrowsAny<IOException>(() => Updater.Swap(exe, Path.Combine(root, "new.exe")));
+
+            Assert.Equal("old", File.ReadAllText(exe));
+            Assert.False(File.Exists(exe + ".old"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Cleanup_RemovesOldAndUpdateDir()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        try
+        {
+            Directory.CreateDirectory(root);
+            var exe = Path.Combine(root, "app.exe");
+            File.WriteAllText(exe + ".old", "old");
+            var updateDir = Path.Combine(root, "update");
+            Directory.CreateDirectory(updateDir);
+            File.WriteAllText(Path.Combine(updateDir, "file.txt"), "x");
+
+            Updater.Cleanup(exe, updateDir);
+
+            Assert.False(File.Exists(exe + ".old"));
+            Assert.False(Directory.Exists(updateDir));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Cleanup_NothingToRemove_DoesNotThrow()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        try
+        {
+            Directory.CreateDirectory(root);
+
+            Updater.Cleanup(Path.Combine(root, "app.exe"), Path.Combine(root, "update"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 }

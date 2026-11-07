@@ -27,4 +27,6 @@ public static class AppPaths
             return dir;
         }
     }
+
+    public static string UpdateDir => Path.Combine(Dir, "update");
 }
