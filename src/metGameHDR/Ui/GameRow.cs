@@ -31,6 +31,8 @@ public sealed class GameRow : INotifyPropertyChanged
     public IReadOnlyList<string> ExeCandidates { get; }
     public bool CanAddToSteam => Game.Source is GameSource.Folder or GameSource.App;
     public bool HdrApplies => Game.Source != GameSource.App;
+    public bool SteamApplies => steamStatus != null;
+    public bool SteamAdded => steamStatus is Steam.SteamStatus.Added or Steam.SteamStatus.NoArtwork;
 
     public bool HdrEnabled
     {
@@ -76,6 +78,8 @@ public sealed class GameRow : INotifyPropertyChanged
             steamStatus = value;
             PropertyChanged?.Invoke(this, new(nameof(SteamStatus)));
             PropertyChanged?.Invoke(this, new(nameof(SteamText)));
+            PropertyChanged?.Invoke(this, new(nameof(SteamApplies)));
+            PropertyChanged?.Invoke(this, new(nameof(SteamAdded)));
         }
     }
 
