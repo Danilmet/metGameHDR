@@ -2,7 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="metGameHDR" Width="1100" Height="680" MinWidth="820" MinHeight="520"
-        Style="{StaticResource {x:Type Window}}" Background="Transparent">
+        Style="{StaticResource {x:Type Window}}" Background="Transparent"
+        PreviewKeyDown="Window_PreviewKeyDown">
     <WindowChrome.WindowChrome>
         <WindowChrome GlassFrameThickness="-1" UseAeroCaptionButtons="True" CaptionHeight="32" ResizeBorderThickness="6" />
     </WindowChrome.WindowChrome>
@@ -66,9 +67,23 @@
                                         CornerRadius="999" Background="#99000000">
                                     <TextBlock Text="{Binding Source}" Foreground="White" FontSize="10"/>
                                 </Border>
-                                <CheckBox Style="{StaticResource HdrToggle}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
-                                          IsChecked="{Binding HdrEnabled, UpdateSourceTrigger=PropertyChanged}"
-                                          Visibility="{Binding HdrApplies, Converter={StaticResource BoolToVisibility}}"/>
+                                <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6" Padding="5,1" CornerRadius="4"
+                                        BorderThickness="1.5" Background="#B3000000" IsHitTestVisible="False"
+                                        Visibility="{Binding HdrApplies, Converter={StaticResource BoolToVisibility}}">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Hdr}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HdrEnabled}" Value="False">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource TextSecondary}"/>
+                                                    <Setter Property="Opacity" Value="0.85"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock x:Name="HdrBadgeText" Text="HDR" FontSize="10" FontWeight="Bold"
+                                               Foreground="{DynamicResource Hdr}"/>
+                                </Border>
                             </Grid>
                         </Border>
                         <DataTemplate.Triggers>
@@ -80,6 +95,10 @@
                             </DataTrigger>
                             <DataTrigger Binding="{Binding SteamText}" Value="нет">
                                 <Setter TargetName="SteamMark" Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding HdrEnabled}" Value="False">
+                                <Setter TargetName="HdrBadgeText" Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                                <Setter TargetName="HdrBadgeText" Property="TextDecorations" Value="Strikethrough"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
                                 <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource Accent}"/>
@@ -93,10 +112,22 @@
                     VerticalAlignment="Top" Visibility="Collapsed"
                     DataContext="{Binding SelectedItem, ElementName=GamesGrid}">
                 <StackPanel>
-                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"
+                                   VerticalAlignment="Center"/>
+                        <Button Grid.Column="1" Content="✕" Width="28" Height="28" Padding="0" Margin="8,0,0,0"
+                                VerticalAlignment="Top" ToolTip="Закрыть" Click="CloseDetails_Click"/>
+                    </Grid>
                     <TextBlock Margin="0,2,0,0" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap">
                         <Run Text="{Binding Source, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding SteamText, Mode=OneWay}"/>
                     </TextBlock>
+                    <CheckBox Style="{StaticResource HdrToggle}" Content="HDR" Margin="0,10,0,0"
+                              IsChecked="{Binding HdrEnabled, UpdateSourceTrigger=PropertyChanged}"
+                              Visibility="{Binding HdrApplies, Converter={StaticResource BoolToVisibility}}"/>
                     <TextBlock Text="Exe" Margin="0,14,0,4" Foreground="{DynamicResource TextSecondary}"/>
                     <ComboBox IsEditable="True" ItemsSource="{Binding ExeCandidates}" IsEnabled="{Binding CanAddToSteam}"
                               Text="{Binding MainExe, UpdateSourceTrigger=PropertyChanged}"/>

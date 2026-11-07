@@ -40,6 +40,7 @@ public sealed class GameRow : INotifyPropertyChanged
             lib.For(Game).HdrEnabled = value;
             Save();
             onHdrChanged();
+            PropertyChanged?.Invoke(this, new(nameof(HdrEnabled)));
         }
     }
 

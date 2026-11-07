@@ -4,6 +4,7 @@ using System.IO;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using MetGameHDR.Scan;
 using MetGameHDR.Steam;
 using Forms = System.Windows.Forms;
@@ -77,6 +78,17 @@ public partial class MainWindow : Window
 
     void ApplyBackdrop() =>
         RootGrid.SetResourceReference(BackgroundProperty, Backdrop.TryApply(this, !Theme.IsLight()) ? "WindowBackground" : "WindowBackgroundSolid");
+
+    void CloseDetails_Click(object sender, RoutedEventArgs e) => GamesGrid.UnselectAll();
+
+    void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && GamesGrid.SelectedItems.Count > 0)
+        {
+            GamesGrid.UnselectAll();
+            e.Handled = true;
+        }
+    }
 
     void GamesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
         DetailsPanel.Visibility = GamesGrid.SelectedItems.Count == 1 ? Visibility.Visible : Visibility.Collapsed;
