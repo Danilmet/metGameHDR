@@ -1,0 +1,17 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="WindowBackground" Color="#CCF2F2F7" />
+    <SolidColorBrush x:Key="WindowBackgroundSolid" Color="#F2F2F7" />
+    <SolidColorBrush x:Key="Surface" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SurfaceHover" Color="#E5E5EA" />
+    <SolidColorBrush x:Key="Border" Color="#1F000000" />
+    <SolidColorBrush x:Key="Text" Color="#000000" />
+    <SolidColorBrush x:Key="TextSecondary" Color="#8A000000" />
+    <SolidColorBrush x:Key="Accent" Color="#007AFF" />
+    <SolidColorBrush x:Key="AccentText" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="Hdr" Color="#30D158" />
+    <LinearGradientBrush x:Key="Overlay" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#00F2F2F7" Offset="0" />
+        <GradientStop Color="#E6F2F2F7" Offset="1" />
+    </LinearGradientBrush>
+</ResourceDictionary>
