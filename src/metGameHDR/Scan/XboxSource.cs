@@ -83,9 +83,14 @@ public sealed class XboxSource : IGameSource
             psi.ArgumentList.Add(Script);
             using var p = Process.Start(psi);
             if (p is null) return null;
-            var output = p.StandardOutput.ReadToEnd();
-            p.WaitForExit();
-            return p.ExitCode == 0 ? output : null;
+            // async read: a synchronous ReadToEnd would block past the timeout
+            var output = p.StandardOutput.ReadToEndAsync();
+            if (!p.WaitForExit(30000))
+            {
+                p.Kill(entireProcessTree: true);
+                return null;
+            }
+            return p.ExitCode == 0 ? output.Result : null;
         }
         catch (System.ComponentModel.Win32Exception)
         {

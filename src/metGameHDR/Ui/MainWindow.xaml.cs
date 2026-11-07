@@ -53,8 +53,8 @@ public partial class MainWindow : Window
             RebuildRows();
         };
 
-        if (lib.Games.Count == 0) _ = RescanAsync();
-        else RebuildRows();
+        if (lib.Games.Count > 0) RebuildRows();
+        _ = RescanAsync();
     }
 
     public void ShowFromTray()
