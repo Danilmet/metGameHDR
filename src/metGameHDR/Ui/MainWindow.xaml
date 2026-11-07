@@ -81,8 +81,19 @@
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>
-                                    <TextBlock x:Name="HdrBadgeText" Text="HDR" FontSize="10" FontWeight="Bold"
-                                               Foreground="{DynamicResource Hdr}"/>
+                                    <TextBlock Text="HDR" FontSize="10" FontWeight="Bold">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                <Setter Property="Foreground" Value="{DynamicResource Hdr}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HdrEnabled}" Value="False">
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                                                        <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </Border>
                             </Grid>
                         </Border>
@@ -95,10 +106,6 @@
                             </DataTrigger>
                             <DataTrigger Binding="{Binding SteamText}" Value="нет">
                                 <Setter TargetName="SteamMark" Property="Visibility" Value="Collapsed"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding HdrEnabled}" Value="False">
-                                <Setter TargetName="HdrBadgeText" Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-                                <Setter TargetName="HdrBadgeText" Property="TextDecorations" Value="Strikethrough"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
                                 <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource Accent}"/>
