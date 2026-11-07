@@ -6,7 +6,6 @@ using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -76,10 +75,13 @@ public sealed class Covers(HttpClient http, string cacheDir)
             if (ext.Length == 0) ext = ".png";
             Directory.CreateDirectory(cacheDir);
             var path = Path.Combine(cacheDir, CacheFileName(game.InstallDir) + ext);
-            await File.WriteAllBytesAsync(path, await http.GetByteArrayAsync(url));
+            // The temp name must not start with CacheFileName, or LocalPath's "<name>.*" lookup would pick up a leftover partial file.
+            var tmp = Path.Combine(cacheDir, "~" + Path.GetFileName(path));
+            await File.WriteAllBytesAsync(tmp, await http.GetByteArrayAsync(url));
+            File.Move(tmp, path, overwrite: true);
             return path;
         }
-        catch (Exception e) when (e is HttpRequestException or IOException or TaskCanceledException or JsonException)
+        catch (Exception e)
         {
             Log.Write($"Cover {game.Name}: {e.Message}");
             return null;
