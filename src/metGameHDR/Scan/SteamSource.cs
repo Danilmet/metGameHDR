@@ -23,7 +23,7 @@ public sealed class SteamSource(string? steamPath) : IGameSource
                 var state = Load(file);
                 if (state == null || !state.TryGetValue("AppState", out var a) || a is not Dictionary<string, object> app) continue;
                 if (app.GetValueOrDefault("name") is not string name || app.GetValueOrDefault("installdir") is not string dir) continue;
-                yield return new Game(name, Path.Combine(apps, "common", dir), GameSource.Steam, null);
+                yield return new Game(name, Path.Combine(apps, "common", dir), GameSource.Steam, null, null, app.GetValueOrDefault("appid") as string);
             }
         }
     }

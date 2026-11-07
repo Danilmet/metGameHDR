@@ -34,6 +34,21 @@ public class SteamSourceTests : IDisposable
     }
 
     [Fact]
+    public void Scan_FillsSteamAppId()
+    {
+        var lib2 = Path.Combine(root, "lib2");
+        Directory.CreateDirectory(Path.Combine(lib2, "steamapps"));
+        Write(@"steamapps\libraryfolders.vdf", Libraries(root, lib2));
+        Write(@"steamapps\appmanifest_10.acf", "\"AppState\"\n{\n\t\"appid\"\t\"10\"\n\t\"name\"\t\"Half-Life\"\n\t\"installdir\"\t\"Half-Life\"\n}\n");
+        Write(@"steamapps\appmanifest_30.acf", "\"AppState\" { \"name\" \"NoId\" \"installdir\" \"NoId\" }");
+        File.WriteAllText(Path.Combine(lib2, @"steamapps\appmanifest_20.acf"), "\"AppState\" { \"appid\" \"20\" \"name\" \"Portal\" \"installdir\" \"Portal\" }");
+        var games = new SteamSource(root).Scan().ToDictionary(g => g.Name);
+        Assert.Equal("10", games["Half-Life"].SteamAppId);
+        Assert.Equal("20", games["Portal"].SteamAppId);
+        Assert.Null(games["NoId"].SteamAppId);
+    }
+
+    [Fact]
     public void Scan_NullPathOrMissingFiles_ReturnsEmpty()
     {
         Assert.Empty(new SteamSource(null).Scan());
