@@ -10,10 +10,10 @@ public sealed record AdviceRequest(Game Game, HardwareInfo Hardware, GraphicsGoa
 
 public sealed class AdviceException(string message) : Exception(message);
 
-public sealed class ClaudeClient(HttpClient http, string apiKey)
+public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl = null)
 {
     public const string Model = "claude-opus-5-5";
-    const string Url = "https://api.anthropic.com/v1/messages";
+    const string DefaultBaseUrl = "https://api.anthropic.com";
 
     const string SystemPrompt = """
         Ты эксперт по оптимизации графических настроек ПК-игр. Тебе дают игру, железо пользователя, цель (кадры в секунду и приоритет: картинка, баланс или отзывчивость) и содержимое найденных файлов настроек игры.
@@ -53,7 +53,8 @@ public sealed class ClaudeClient(HttpClient http, string apiKey)
 
     public async Task<AdviceResult> AskAsync(AdviceRequest request, CancellationToken ct)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Post, Url)
+        using var req = new HttpRequestMessage(HttpMethod.Post,
+            (string.IsNullOrWhiteSpace(baseUrl) ? DefaultBaseUrl : baseUrl.TrimEnd('/')) + "/v1/messages")
         {
             Content = new StringContent(BuildBody(request), Encoding.UTF8, "application/json"),
         };

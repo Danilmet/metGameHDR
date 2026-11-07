@@ -14,7 +14,7 @@
 - `metGameHDR.exe --hdr status|on|off` — ручная проверка HDR; `--tray` — запуск без окна (так прописывается автозапуск в HKCU Run).
 
 ## Данные
-`%AppData%\metGameHDR\`: `settings.json` (в том числе ключ API Claude, FPS и приоритет по умолчанию), `library.json` (на игру в `Overrides`: `HdrEnabled`, `MainExe`, `SearchName`, `Goal` и последний `Advice` совета по графике), `log.txt` (после 1 МБ ротация в `log.old`). Битый JSON переименовывается в `.bad`, применяются значения по умолчанию.
+`%AppData%\metGameHDR\`: `settings.json` (в том числе ключ API Claude, `ClaudeBaseUrl` — адрес сервера Claude, пусто = официальный API, FPS и приоритет по умолчанию), `library.json` (на игру в `Overrides`: `HdrEnabled`, `MainExe`, `SearchName`, `Goal` и последний `Advice` совета по графике), `log.txt` (после 1 МБ ротация в `log.old`). Битый JSON переименовывается в `.bad`, применяются значения по умолчанию.
 - `covers\` — обложки SteamGridDB для игр не из Steam; имя файла — безопасное имя папки игры плюс 8 hex-символов хэша пути; временные файлы пишутся как `~имя`, поэтому недокачанный файл никогда не подхватывается.
 
 ## Неочевидное

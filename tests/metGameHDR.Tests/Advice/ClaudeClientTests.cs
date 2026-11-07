@@ -69,6 +69,15 @@ public class ClaudeClientTests
     }
 
     [Fact]
+    public async Task AskAsync_CustomBaseUrl_PostsToProxy()
+    {
+        var fake = new Fake(HttpStatusCode.OK, Response());
+        await new ClaudeClient(new HttpClient(fake), "key", "https://claude.nl.danmet.ru:8443/").AskAsync(Request(), CancellationToken.None);
+
+        Assert.Equal("https://claude.nl.danmet.ru:8443/v1/messages", fake.Last!.RequestUri!.ToString());
+    }
+
+    [Fact]
     public async Task AskAsync_ValidResponse_ParsesResult()
     {
         var fake = new Fake(HttpStatusCode.OK, Response());

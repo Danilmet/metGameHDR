@@ -36,13 +36,14 @@ public partial class MainWindow : Window
         this.settings = settings;
         this.lib = lib;
         this.onLibraryChanged = onLibraryChanged;
-        advisor = new Advisor(() => settings.ClaudeApiKey, lib, AppPaths.LibraryFile, Hardware.Detect, roots, IsRunning, ClaudeHttp);
+        advisor = new Advisor(() => settings.ClaudeApiKey, () => settings.ClaudeBaseUrl, lib, AppPaths.LibraryFile, Hardware.Detect, roots, IsRunning, ClaudeHttp);
         InitializeComponent();
 
         GamesGrid.ItemsSource = rows;
         RootsList.ItemsSource = settings.FolderRoots;
         KeyBox.Text = settings.SteamGridDbKey ?? "";
         ClaudeKeyBox.Text = settings.ClaudeApiKey ?? "";
+        ClaudeUrlBox.Text = settings.ClaudeBaseUrl ?? "";
         DefaultFpsBox.Text = settings.DefaultFps?.ToString() ?? "";
         DefaultPriorityBox.SelectedValue = settings.DefaultPriority;
         AutostartBox.IsChecked = Autostart.IsEnabled();
@@ -66,6 +67,11 @@ public partial class MainWindow : Window
             settings.ClaudeApiKey = ClaudeKeyBox.Text.Trim() is { Length: > 0 } key ? key : null;
             SaveSettings();
             NotifyDefaultsChanged();
+        };
+        ClaudeUrlBox.TextChanged += (_, _) =>
+        {
+            settings.ClaudeBaseUrl = ClaudeUrlBox.Text.Trim() is { Length: > 0 } url ? url : null;
+            SaveSettings();
         };
         DefaultFpsBox.TextChanged += (_, _) =>
         {

@@ -14,6 +14,7 @@ public sealed class Settings
     public bool Autostart { get; set; }
     public bool TurnOffHdrOnExit { get; set; } = true;
     public string? ClaudeApiKey { get; set; }
+    public string? ClaudeBaseUrl { get; set; }
     public int? DefaultFps { get; set; }
     public Advice.Priority DefaultPriority { get; set; } = Advice.Priority.Balanced;
 

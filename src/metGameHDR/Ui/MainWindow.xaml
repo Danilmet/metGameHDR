@@ -286,6 +286,9 @@
                         <TextBlock Text="Claude" FontWeight="SemiBold"/>
                         <TextBlock Text="Ключ API" Margin="0,8,0,4" Foreground="{DynamicResource TextSecondary}"/>
                         <TextBox x:Name="ClaudeKeyBox"/>
+                        <TextBlock Text="Адрес сервера" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
+                        <TextBox x:Name="ClaudeUrlBox"/>
+                        <TextBlock Text="Пусто — api.anthropic.com; для своего прокси укажи его адрес" Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource TextSecondary}"/>
                         <TextBlock Text="FPS по умолчанию (пусто — частота монитора)" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
                         <TextBox x:Name="DefaultFpsBox" Width="60" HorizontalAlignment="Left"/>
                         <TextBlock Text="Приоритет по умолчанию" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
