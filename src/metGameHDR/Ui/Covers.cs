@@ -57,7 +57,7 @@ public sealed class Covers(HttpClient http, string cacheDir)
     {
         lock (fetches)
         {
-            // Finished tasks stay in the map, so a game that failed is not re-queried in this process.
+            // A "no match" result stays in the map and is not re-queried; on an error DownloadAsync drops its entry so the next call retries.
             if (!fetches.TryGetValue(game.InstallDir, out var task))
                 fetches[game.InstallDir] = task = Task.Run(() => DownloadAsync(game, searchName, db));
             return task;
@@ -84,6 +84,7 @@ public sealed class Covers(HttpClient http, string cacheDir)
         catch (Exception e)
         {
             Log.Write($"Cover {game.Name}: {e.Message}");
+            lock (fetches) fetches.Remove(game.InstallDir);
             return null;
         }
         finally

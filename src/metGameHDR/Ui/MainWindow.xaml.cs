@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     readonly Covers covers = new(Http, AppPaths.CoversDir);
     bool scanning;
     bool addingToSteam;
+    Action? pendingCovers;
 
     public MainWindow(Settings settings, Library lib, Action onLibraryChanged)
     {
@@ -56,7 +57,11 @@ public partial class MainWindow : Window
             RebuildRows();
         };
         Theme.Changed += ApplyBackdrop;
-        IsVisibleChanged += (_, e) => Log.Write($"Window visible={e.NewValue}{Environment.NewLine}{Environment.StackTrace}");
+        IsVisibleChanged += (_, e) =>
+        {
+            Log.Write($"Window visible={e.NewValue}{Environment.NewLine}{Environment.StackTrace}");
+            if ((bool)e.NewValue) RunPendingCovers();
+        };
 
         if (lib.Games.Count > 0) RebuildRows();
         _ = RescanAsync();
@@ -88,6 +93,21 @@ public partial class MainWindow : Window
             GamesGrid.UnselectAll();
             e.Handled = true;
         }
+    }
+
+    void Card_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is ListBoxItem { IsSelected: true } && GamesGrid.SelectedItems.Count == 1 && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            GamesGrid.UnselectAll();
+            e.Handled = true;
+        }
+    }
+
+    // ListBox captures the mouse on an item click and then selects every item the pointer enters (drag-select); dropping that capture disables it.
+    void GamesGrid_GotMouseCapture(object sender, MouseEventArgs e)
+    {
+        if (ReferenceEquals(e.OriginalSource, GamesGrid)) GamesGrid.ReleaseMouseCapture();
     }
 
     void GamesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
@@ -123,7 +143,16 @@ public partial class MainWindow : Window
                 : (SteamStatus?)null;
             rows.Add(new GameRow(g, lib, status, onLibraryChanged));
         }
-        LoadCovers(steam, shortcuts, gridDir);
+        // Covers are decoded on the UI thread, so a hidden window (--tray autostart) waits until it is first shown.
+        pendingCovers = () => LoadCovers(steam, shortcuts, gridDir);
+        if (IsVisible) RunPendingCovers();
+    }
+
+    void RunPendingCovers()
+    {
+        var load = pendingCovers;
+        pendingCovers = null;
+        load?.Invoke();
     }
 
     void LoadCovers(string? steam, VdfObject? shortcuts, string? gridDir)
