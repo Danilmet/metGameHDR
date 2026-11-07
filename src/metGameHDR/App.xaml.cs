@@ -1,5 +1,8 @@
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Threading;
+using MetGameHDR.Scan;
+using MetGameHDR.Ui;
 using MetGameHDR.Watch;
 
 namespace MetGameHDR;
@@ -15,7 +18,40 @@ public partial class App : Application
             Shutdown(0);
             return;
         }
-        new MainWindow().Show();
+        StartTray();
+    }
+
+    void StartTray()
+    {
+        var settings = Settings.Load(AppPaths.SettingsFile);
+        var lib = Library.Load(AppPaths.LibraryFile);
+        var hdr = new DisplayConfigHdr();
+        var watcher = new ProcessWatcher(lib, ProcessList.Pids, ProcessList.Path);
+        var controller = new HdrController(hdr, () => settings.TurnOffHdrOnExit, TimeSpan.FromSeconds(3));
+        var window = new MainWindow(settings, lib);
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        Tray? tray = null;
+        tray = new Tray(window.ShowFromTray, () =>
+        {
+            timer.Stop();
+            tray!.Dispose();
+            Shutdown();
+        });
+        timer.Tick += (_, _) =>
+        {
+            try
+            {
+                if (!tray.Paused) controller.Update(watcher.Tick(), DateTime.UtcNow);
+                tray.SetHdr(hdr.IsEnabled() == true);
+            }
+            catch (Exception ex)
+            {
+                Log.Write($"Tick: {ex}");
+                tray.ShowError(ex.Message);
+            }
+        };
+        timer.Start();
+        window.Show();
     }
 
     static void RunHdrCommand(string command)
