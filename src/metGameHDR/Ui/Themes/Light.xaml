@@ -9,7 +9,7 @@
     <SolidColorBrush x:Key="TextSecondary" Color="#8A000000" />
     <SolidColorBrush x:Key="Accent" Color="#007AFF" />
     <SolidColorBrush x:Key="AccentText" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="Hdr" Color="#FF9F0A" />
+    <SolidColorBrush x:Key="Hdr" Color="#30D158" />
     <LinearGradientBrush x:Key="Overlay" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#00F2F2F7" Offset="0" />
         <GradientStop Color="#E6F2F2F7" Offset="1" />
