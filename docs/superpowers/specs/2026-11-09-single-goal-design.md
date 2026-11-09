@@ -34,7 +34,7 @@ public enum GoalStep { MaxQuality, Pretty, Balanced, Smooth, MaxFps }
 | Smooth | Плавно | hz | Target |
 | MaxFps | Макс. FPS | null | Unlimited |
 
-Примеры: 60 Гц → 30/60/60/60/—; 144 → 30/60/100/144/—; 165 → 30/60/110/165/—; 240 → 30/60/150/240/—. Середина: `(int)Math.Round((pretty + smooth) / 20.0, MidpointRounding.AwayFromZero) * 10` (112,5 → 110, 102 → 100, 105 → 110).
+Примеры: 60 Гц → 30/60/60/60/—; 144 → 30/60/100/144/—; 165 → 30/60/110/165/—; 240 → 30/60/150/240/—. Середина: `(int)Math.Round((pretty + smooth) / 20.0, MidpointRounding.AwayFromZero) * 10`, затем `Math.Clamp(mid, pretty, smooth)` — на нестандартных частотах округление может выйти за край (59 Гц: 60 > 59). Примеры: 112,5 → 110, 102 → 100, 105 → 110; 59 Гц → 59.
 
 Хранение:
 
