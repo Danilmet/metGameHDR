@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using Microsoft.Win32.SafeHandles;
 
@@ -60,6 +61,58 @@ public static class RegistryConfig
         }
         lines.Sort(StringComparer.OrdinalIgnoreCase);
         return string.Join("\n", lines);
+    }
+
+    public static string? CurrentValue(string key, string name)
+    {
+        using var k = Registry.CurrentUser.OpenSubKey(SubKey(key));
+        var real = k == null ? null : ResolveName(k.GetValueNames(), name);
+        return real == null ? null : Format(k!.GetValue(real, null, RegistryValueOptions.DoNotExpandEnvironmentNames), k.GetValueKind(real));
+    }
+
+    // All-or-nothing: every edit is resolved and converted before the first SetValue.
+    public static bool Apply(string key, IReadOnlyList<ConfigEdit> edits)
+    {
+        using var k = Registry.CurrentUser.OpenSubKey(SubKey(key), writable: true);
+        if (k == null) return false;
+        var names = k.GetValueNames();
+        var writes = new List<(string Name, object Data, RegistryValueKind Kind)>();
+        foreach (var e in edits)
+        {
+            var name = ResolveName(names, e.Key);
+            if (name == null) return false;
+            var kind = k.GetValueKind(name);
+            var converted = Convert(e.Value, Classify(k.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames), kind));
+            if (converted == null) return false;
+            writes.Add((name, converted.Value.Data, converted.Value.Kind));
+        }
+        foreach (var w in writes) k.SetValue(w.Name, w.Data, w.Kind);
+        return true;
+    }
+
+    internal static string? ResolveName(IReadOnlyList<string> names, string key)
+    {
+        var exact = names.FirstOrDefault(n => n.Equals(key, StringComparison.OrdinalIgnoreCase));
+        if (exact != null) return exact;
+        var hits = names.Where(n => Regex.Replace(n, @"_h\d+$", "").Equals(key, StringComparison.OrdinalIgnoreCase)).Take(2).ToList();
+        return hits.Count == 1 ? hits[0] : null;
+    }
+
+    internal static (object Data, RegistryValueKind Kind)? Convert(string value, ValueKind kind)
+    {
+        switch (kind)
+        {
+            case ValueKind.Int when int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i):
+                return (i, RegistryValueKind.DWord);
+            case ValueKind.Float when float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var f):
+                return (BitConverter.SingleToInt32Bits(f), RegistryValueKind.DWord);
+            case ValueKind.BinaryString:
+                return (Encoding.UTF8.GetBytes(value + "\0"), RegistryValueKind.Binary);
+            case ValueKind.Sz:
+                return (value, RegistryValueKind.String);
+            default:
+                return null;
+        }
     }
 
     internal enum ValueKind { None, Int, Float, BinaryString, Sz }
