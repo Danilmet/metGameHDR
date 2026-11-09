@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using System.Windows.Media;
+using System.Windows.Threading;
 using MetGameHUB.Advice;
 using MetGameHUB.Scan;
 using MetGameHUB.Steam;
@@ -151,13 +152,13 @@ public sealed class GameRow : INotifyPropertyChanged
             {
                 if (GoalOverride is null) return;
                 lib.For(Game).Goal = null;
-                Save();
+                SaveSoon();
                 Notify(nameof(GoalPriority));
                 return;
             }
             if (!int.TryParse(text, out var fps) || fps <= 0 || fps == GoalOverride?.Fps) return;
             lib.For(Game).Goal = new GraphicsGoal(fps, Goal.Priority);
-            Save();
+            SaveSoon();
         }
     }
 
@@ -297,4 +298,15 @@ public sealed class GameRow : INotifyPropertyChanged
     void Notify(string name) => PropertyChanged?.Invoke(this, new(name));
 
     void Save() => lib.Save(AppPaths.LibraryFile);
+
+    DispatcherTimer? saveTimer;
+
+    // Typing in the FPS box changes the goal per keystroke; the file is written once typing pauses.
+    void SaveSoon()
+    {
+        saveTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(500), DispatcherPriority.Background,
+            (_, _) => { saveTimer!.Stop(); Save(); }, Dispatcher.CurrentDispatcher);
+        saveTimer.Stop();
+        saveTimer.Start();
+    }
 }

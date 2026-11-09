@@ -14,6 +14,8 @@ public static class Updater
 
     static readonly HttpClient Http = CreateHttp();
 
+    static readonly TimeSpan StallTimeout = TimeSpan.FromSeconds(30);
+
     static HttpClient CreateHttp()
     {
         var http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
@@ -52,7 +54,7 @@ public static class Updater
             }
             return null;
         }
-        catch (JsonException)
+        catch (Exception e) when (e is JsonException or InvalidOperationException)
         {
             return null;
         }
@@ -60,9 +62,10 @@ public static class Updater
 
     public static async Task<Release?> CheckAsync()
     {
-        using var response = await Http.GetAsync($"https://api.github.com/repos/{Repo}/releases/latest");
+        using var cts = new CancellationTokenSource(StallTimeout);
+        using var response = await Http.GetAsync($"https://api.github.com/repos/{Repo}/releases/latest", cts.Token);
         response.EnsureSuccessStatusCode();
-        var release = Parse(await response.Content.ReadAsStringAsync(), Current, IsSelfContained);
+        var release = Parse(await response.Content.ReadAsStringAsync(cts.Token), Current, IsSelfContained);
         Log.Write($"Update check: current {Current}, selfContained {IsSelfContained}, latest {(release is null ? "none" : "v" + release.Version.ToString(3))}");
         return release;
     }
@@ -71,12 +74,25 @@ public static class Updater
     {
         Directory.CreateDirectory(updateDir);
         var zipPath = Path.Combine(updateDir, "update.zip");
-        using (var response = await Http.GetAsync(release.AssetUrl, HttpCompletionOption.ResponseHeadersRead))
+        // No total timeout (a slow link may need minutes), but a stall of StallTimeout without data aborts.
+        using var stall = new CancellationTokenSource(StallTimeout);
+        try
         {
+            using var response = await Http.GetAsync(release.AssetUrl, HttpCompletionOption.ResponseHeadersRead, stall.Token);
             response.EnsureSuccessStatusCode();
-            await using var src = await response.Content.ReadAsStreamAsync();
+            await using var src = await response.Content.ReadAsStreamAsync(stall.Token);
             await using var dst = new FileStream(zipPath, FileMode.Create);
-            await src.CopyToAsync(dst);
+            var buffer = new byte[81920];
+            int n;
+            while ((n = await src.ReadAsync(buffer, stall.Token)) > 0)
+            {
+                await dst.WriteAsync(buffer.AsMemory(0, n));
+                stall.CancelAfter(StallTimeout);
+            }
+        }
+        catch (OperationCanceledException) when (stall.IsCancellationRequested)
+        {
+            throw new TimeoutException($"Сервер не отвечает {StallTimeout.TotalSeconds:0} с");
         }
         return await Task.Run(() => Extract(zipPath, Path.Combine(updateDir, "unpacked")));
     }

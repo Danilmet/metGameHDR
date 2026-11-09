@@ -24,12 +24,14 @@ public partial class MainWindow : Window
     readonly Library lib;
     readonly Advisor advisor;
     readonly FinderRoots roots = FinderRoots.Default();
-    readonly int monitorHz = Math.Max(Hardware.Detect().Hz, 60);
+    readonly int monitorHz = Hardware.Detect().Hz is > 0 and var hz ? hz : 60;
     readonly Action onLibraryChanged;
     readonly ObservableCollection<GameRow> rows = [];
     readonly Covers covers = new(Http, AppPaths.CoversDir);
     bool scanning;
     bool addingToSteam;
+    bool updating;
+    GameRow? askingRow;
     Action? pendingCovers;
     Func<Task>? installUpdate;
 
@@ -232,6 +234,12 @@ public partial class MainWindow : Window
                 : (SteamStatus?)null;
             rows.Add(new GameRow(g, lib, status, onLibraryChanged, roots, DefaultGoal, () => !string.IsNullOrWhiteSpace(settings.ClaudeApiKey)));
         }
+        if (askingRow != null && CurrentRow(askingRow) is { } replaced)
+        {
+            replaced.IsAsking = true;
+            replaced.AskStage = askingRow.AskStage;
+            replaced.AdviceStatus = askingRow.AdviceStatus;
+        }
         // Covers are decoded on the UI thread, so a hidden window (--tray autostart) waits until it is first shown.
         pendingCovers = () => LoadCovers(steam, shortcuts, gridDir);
         if (IsVisible) RunPendingCovers();
@@ -273,7 +281,9 @@ public partial class MainWindow : Window
         AddAppButton.IsEnabled = canRescan;
         AddRootButton.IsEnabled = canRescan;
         RemoveRootButton.IsEnabled = canRescan;
-        AddToSteamButton.IsEnabled = canRescan;
+        // Updating restarts the app, which would leave Steam closed in the middle of an add.
+        AddToSteamButton.IsEnabled = canRescan && !updating;
+        UpdateButton.IsEnabled = !addingToSteam && !updating;
     }
 
     async Task RescanAsync()
@@ -391,6 +401,7 @@ public partial class MainWindow : Window
         if (asking != null) return;
         using var cts = new CancellationTokenSource();
         asking = cts;
+        askingRow = row;
         SetAsking(row, true);
         SetStatus(row, "", "");
         try
@@ -430,6 +441,7 @@ public partial class MainWindow : Window
         finally
         {
             if (ReferenceEquals(asking, cts)) asking = null;
+            askingRow = null;
             SetAsking(row, false);
         }
     }
@@ -549,14 +561,17 @@ public partial class MainWindow : Window
 
     async void Update_Click(object sender, RoutedEventArgs e)
     {
-        UpdateButton.IsEnabled = false;
+        if (addingToSteam) return;
+        updating = true;
+        UpdateButtons();
         UpdateButton.Content = "Загрузка…";
         try { await installUpdate!(); }
         catch (Exception ex)
         {
             Log.Write($"Update: {ex}");
             UpdateText.Text = $"Ошибка: {ex.Message}";
-            UpdateButton.IsEnabled = true;
+            updating = false;
+            UpdateButtons();
             UpdateButton.Content = "Обновить";
         }
     }

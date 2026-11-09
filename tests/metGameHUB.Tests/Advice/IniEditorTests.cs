@@ -137,6 +137,37 @@ public class IniEditorTests
     }
 
     [Fact]
+    public void Apply_BareToken_GetsSeparator()
+    {
+        Assert.Equal("[A]\nFullscreen=1\n", IniEditor.Apply("[A]\nFullscreen\n", E("A", "Fullscreen", "1")));
+        Assert.Equal("a=1\n", IniEditor.Apply("a=\n", E(null, "a", "1")));
+    }
+
+    [Fact]
+    public void Apply_InlineComment_IsKept()
+    {
+        Assert.Equal("a=2 ; was 1\r\n", IniEditor.Apply("a=1 ; was 1\r\n", E(null, "a", "2")));
+        Assert.Equal("c = #FFF\n", IniEditor.Apply("c = #000\n", E(null, "c", "#FFF")));
+        Assert.Equal("1", IniEditor.CurrentValue("a=1\t# note\n", null, "a"));
+    }
+
+    [Fact]
+    public void Apply_DuplicateSections_AppendsToFirst()
+    {
+        var text = "[A]\na=1\n[B]\nb=1\n[A]\nx=1\n";
+        Assert.Equal("[A]\na=1\nc=3\n[B]\nb=1\n[A]\nx=1\n", IniEditor.Apply(text, E("A", "c", "3")));
+        Assert.Equal("[A]\na=2\n[B]\nb=1\n[A]\nx=1\n", IniEditor.Apply(text, E("A", "a", "2")));
+    }
+
+    [Fact]
+    public void ApplyBytes_AnsiFile_ValueOutsideLatin1_IsRejected()
+    {
+        byte[] file = [.. "n="u8, 0xC4, .. "\r\na=1\r\n"u8];
+        Assert.Null(IniEditor.ApplyBytes(file, E(null, "a", "Высокое")));
+        Assert.NotNull(IniEditor.ApplyBytes("a=1\n"u8.ToArray(), E(null, "a", "Высокое")));
+    }
+
+    [Fact]
     public void Apply_JsonLine_MissingKey_IsNotAppended()
     {
         var text = "{\n\t\"a\": 1\n}\n";

@@ -19,7 +19,8 @@ public static class IniEditor
         return string.Concat(lines);
     }
 
-    public static byte[] ApplyBytes(byte[] file, IReadOnlyList<ConfigEdit> edits)
+    // Null when a value cannot be written in the file's encoding (non-Latin1 text into an ANSI file would become '?').
+    public static byte[]? ApplyBytes(byte[] file, IReadOnlyList<ConfigEdit> edits)
     {
         Encoding enc;
         int bom;
@@ -33,6 +34,7 @@ public static class IniEditor
             // Latin1 maps every byte to a char, so ANSI files round-trip untouched.
             try { enc.GetString(file); }
             catch (DecoderFallbackException) { enc = Encoding.Latin1; }
+            if (enc == Encoding.Latin1 && edits.Any(e => e.Value.Any(c => c > 'ÿ'))) return null;
         }
 
         var body = enc.GetBytes(Apply(enc.GetString(file, bom, file.Length - bom), edits));
@@ -46,7 +48,8 @@ public static class IniEditor
         if (i < 0) return null;
         var content = Content(lines[i]);
         if (JsonLine.Match(content) is { Success: true } j) return j.Groups[4].Value;
-        return content[ValueStart(content)..].TrimEnd();
+        var (start, end, _) = ValueRange(content);
+        return content[start..end].TrimEnd();
     }
 
     private static void ApplyOne(List<string> lines, ConfigEdit edit, string nl, bool json)
@@ -62,7 +65,9 @@ public static class IniEditor
                 lines[i] = content[..v.Index] + value + content[(v.Index + v.Length)..] + lines[i][content.Length..];
                 return;
             }
-            lines[i] = content[..ValueStart(content)] + edit.Value + lines[i][content.Length..];
+            var (start, end, bare) = ValueRange(content);
+            var head = bare ? content.TrimEnd() + "=" : content[..start];
+            lines[i] = head + edit.Value + content[end..] + lines[i][content.Length..];
             return;
         }
 
@@ -96,6 +101,8 @@ public static class IniEditor
         lastNonBlank = -1;
         string? current = null;
         var found = -1;
+        // A repeated section header: matches are still found there, but missing keys go into the first copy.
+        var leftSection = false;
         for (var i = 0; i < lines.Count; i++)
         {
             var jm = JsonLine.Match(Content(lines[i]));
@@ -111,9 +118,13 @@ public static class IniEditor
                 var end = trimmed.IndexOf(']');
                 current = (end > 0 ? trimmed[1..end] : trimmed[1..]).Trim();
             }
-            if (!string.Equals(current, section, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!string.Equals(current, section, StringComparison.OrdinalIgnoreCase))
+            {
+                if (lastNonBlank >= 0) leftSection = true;
+                continue;
+            }
             sectionFound = true;
-            if (trimmed.Length > 0) lastNonBlank = i;
+            if (trimmed.Length > 0 && !leftSection) lastNonBlank = i;
             if (found < 0 && !isHeader && KeyMatches(trimmed, key)) found = i;
         }
         return found;
@@ -162,10 +173,19 @@ public static class IniEditor
         return string.Equals(lastWord, key, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static int ValueStart(string content)
+    // Bare: a lone key with no separator. With '=', an inline ';' or '#' comment after whitespace is not part of the value.
+    private static (int Start, int End, bool Bare) ValueRange(string content)
     {
-        Parse(content, out _, out var v, out _);
-        return v;
+        Parse(content, out _, out var start, out var hasEq);
+        if (!hasEq) return (start, content.Length, start == content.Length);
+        for (var j = start + 1; j < content.Length; j++)
+        {
+            if (content[j] is not (';' or '#') || !char.IsWhiteSpace(content[j - 1])) continue;
+            var end = j;
+            while (end > start && char.IsWhiteSpace(content[end - 1])) end--;
+            return (start, end, false);
+        }
+        return (start, content.Length, false);
     }
 
     private static string Content(string line) => line.TrimEnd('\r', '\n');

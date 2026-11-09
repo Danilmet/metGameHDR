@@ -110,11 +110,16 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
 
         var original = File.ReadAllBytes(path);
         if (!CanWrite(File.ReadAllText(path), edits)) return ApplyOutcome.NotIni;
+        if (IniEditor.ApplyBytes(original, edits) is not { } updated)
+        {
+            Log.Write($"Apply advice: value does not fit the ANSI encoding of {path}");
+            return ApplyOutcome.BadEdit;
+        }
         if (!File.Exists(path + ".orig")) File.WriteAllBytes(path + ".orig", original);
         File.WriteAllBytes(path + ".bak", original);
 
         var tmp = path + ".tmp";
-        File.WriteAllBytes(tmp, IniEditor.ApplyBytes(original, edits));
+        File.WriteAllBytes(tmp, updated);
         try { File.Move(tmp, path, overwrite: true); }
         catch { File.Delete(tmp); throw; }
         // The file now holds the recommended values, so the stored advice shows them as current.

@@ -27,6 +27,10 @@ public static class LibraryScanner
         new EaSource(),
         new XboxSource(),
         new FolderSource(s.FolderRoots),
-        new AppsSource(s.Apps),
+        new AppsSource(AppsWithSelf(s.Apps, Environment.ProcessPath)),
     ];
+
+    // The hub itself is listed as an app so it can be added to Steam; the name check skips dotnet.exe/testhost.
+    internal static IEnumerable<string> AppsWithSelf(IEnumerable<string> apps, string? self) =>
+        self != null && Path.GetFileName(self).Equals("metGameHUB.exe", StringComparison.OrdinalIgnoreCase) ? apps.Append(self) : apps;
 }

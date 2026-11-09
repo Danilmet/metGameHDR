@@ -17,6 +17,12 @@ public class UpdaterTests
             assets = assetNames.Select(n => new { name = n, browser_download_url = "https://example.com/" + n }),
         });
 
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("{\"tag_name\":\"v9.0.0\",\"assets\":{}}")]
+    public void Parse_UnexpectedShape_ReturnsNull(string json) =>
+        Assert.Null(Updater.Parse(json, new Version(0, 1, 0), selfContained: false));
+
     [Fact]
     public void Parse_Newer_ReturnsFrameworkDependentAsset()
     {
