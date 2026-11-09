@@ -173,11 +173,31 @@ public partial class MainWindow : Window
     {
         GamePage.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         GamesArea.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
+        if (!show) return;
+        GameStrip.SelectedItem = GamesGrid.SelectedItem;
+        if (GameStrip.SelectedItem != null) GameStrip.ScrollIntoView(GameStrip.SelectedItem);
     }
 
     void OpenGamePage_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is not GameRow row) return;
+        if ((sender as FrameworkElement)?.DataContext is GameRow row) OpenGamePage(row);
+    }
+
+    // Mouse and keyboard both land here, so switching games always goes through ConfirmLeave.
+    void GameStrip_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (GameStrip.SelectedItem is not GameRow row || ReferenceEquals(row, GamesGrid.SelectedItem)) return;
+        if (!ConfirmLeave())
+        {
+            GameStrip.SelectedItem = GamesGrid.SelectedItem;
+            return;
+        }
+        GamesGrid.SelectedItem = row;
+        OpenGamePage(row);
+    }
+
+    void OpenGamePage(GameRow row)
+    {
         row.ApplyStatus = "";
         row.RefreshCanApply();
         row.RefreshConfig();

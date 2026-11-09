@@ -184,7 +184,38 @@
             </Grid>
             <Grid x:Name="GamePage" Visibility="Collapsed"
                   DataContext="{Binding SelectedItem, ElementName=GamesGrid}">
-                <Border Style="{StaticResource CardSurface}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <!-- Shares GamesGrid's default view, so the hidden-games filter applies here too. -->
+                <ListBox x:Name="GameStrip" Width="52" Margin="0,0,10,0" ItemsSource="{Binding ItemsSource, ElementName=GamesGrid}"
+                         SelectionChanged="GameStrip_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border x:Name="Tile" Width="44" Height="44" Margin="0,2" CornerRadius="8" BorderThickness="2"
+                                    BorderBrush="Transparent" Background="{DynamicResource Surface}" ToolTip="{Binding Name}">
+                                <Grid>
+                                    <TextBlock x:Name="Letter" Text="{Binding Initial}" Visibility="Collapsed"
+                                               FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <Image Source="{Binding Icon}" Width="32" Height="32"/>
+                                </Grid>
+                            </Border>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Icon}" Value="{x:Null}">
+                                    <Setter TargetName="Letter" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Hidden}" Value="True">
+                                    <Setter TargetName="Tile" Property="Opacity" Value="0.45"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                    <Setter TargetName="Tile" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <Border Grid.Column="1" Style="{StaticResource CardSurface}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>

@@ -51,6 +51,7 @@ public sealed class GameRow : INotifyPropertyChanged
 
     public Game Game { get; }
     public string Name => Game.Name;
+    public string Initial => Name.Length > 0 ? char.ToUpperInvariant(Name[0]).ToString() : "?";
     public string Source => Game.Source.ToString();
     public IReadOnlyList<string> ExeCandidates { get; }
     public bool CanAddToSteam => Game.Source is GameSource.Folder or GameSource.App;
