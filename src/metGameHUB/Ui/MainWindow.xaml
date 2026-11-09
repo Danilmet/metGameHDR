@@ -239,7 +239,7 @@
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                 <TextBlock Text="Имя для поиска" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
-                                <TextBox Width="240" Text="{Binding SearchName, UpdateSourceTrigger=PropertyChanged}" LostFocus="SearchName_LostFocus"/>
+                                <TextBox x:Name="SearchNameBox" Width="240" Text="{Binding SearchName, UpdateSourceTrigger=PropertyChanged}" LostFocus="SearchName_LostFocus"/>
                             </StackPanel>
                         </WrapPanel>
 

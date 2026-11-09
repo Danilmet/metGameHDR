@@ -117,7 +117,7 @@ public sealed class GameRow : INotifyPropertyChanged
 
     public HltbInfo? Hltb
     {
-        get => lib.For(Game).Hltb;
+        get => lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.Hltb : null;
         set
         {
             lib.For(Game).Hltb = value;
