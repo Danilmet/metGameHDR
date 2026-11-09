@@ -24,7 +24,8 @@ public sealed class GameRow : INotifyPropertyChanged
     bool isAsking;
     string askStage = "";
     string configText = "", configDetail = "";
-    bool hasConfigPath, configMissing, canRestore;
+    bool hasConfigPath, configMissing, canRestore, wasApplied;
+    IReadOnlyList<ChatTurnVm> chat = [];
     string adviceStatus = "";
     string applyStatus = "";
     IReadOnlyList<AdviceRowVm> adviceRows = [];
@@ -205,6 +206,9 @@ public sealed class GameRow : INotifyPropertyChanged
     public bool NoKey => !hasKey();
     public bool CanAsk => hasKey() && !isAsking;
     public bool CanLocate => hasKey() && !isAsking;
+    public bool CanChat => HasAdvice && hasKey() && !isAsking;
+    public bool WasApplied => wasApplied;
+    public IReadOnlyList<ChatTurnVm> Chat => chat;
     public bool IsIdle => !isAsking;
     public bool CanApplyNow => canApply && !isAsking;
     public string ConfigText => configText;
@@ -223,7 +227,7 @@ public sealed class GameRow : INotifyPropertyChanged
         {
             isAsking = value;
             Notify(nameof(IsAsking));
-            foreach (var name in new[] { nameof(CanAsk), nameof(CanLocate), nameof(IsIdle), nameof(CanApplyNow) })
+            foreach (var name in new[] { nameof(CanAsk), nameof(CanLocate), nameof(IsIdle), nameof(CanApplyNow), nameof(CanChat) })
                 Notify(name);
         }
     }
@@ -263,8 +267,10 @@ public sealed class GameRow : INotifyPropertyChanged
         latest = lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.Advice : null;
         canApply = false;
         provisional = null;
+        chat = (o?.Chat ?? []).Select(t => new ChatTurnVm(t.Role == ChatRole.User, t.Text,
+            t.Attachments is { Count: > 0 } a ? "📎 " + string.Join(", ", a) : "", t.At.ToLocalTime().ToString("dd.MM HH:mm"))).ToList();
         adviceRows = []; // rebuilt by RefreshCanApply/RefreshConfig: BuildRows touches the file system
-        foreach (var name in new[] { nameof(HasRows), nameof(SnapshotStale), nameof(Latest), nameof(HasAdvice), nameof(AdviceSummary), nameof(AdviceRows), nameof(AdviceHeading), nameof(OptimizedText), nameof(AdviceNotes), nameof(AdviceAt), nameof(CanApply), nameof(CanApplyNow), nameof(TargetIndex), nameof(TargetText), nameof(HasOwnTarget) })
+        foreach (var name in new[] { nameof(HasRows), nameof(SnapshotStale), nameof(Latest), nameof(HasAdvice), nameof(AdviceSummary), nameof(AdviceRows), nameof(AdviceHeading), nameof(OptimizedText), nameof(AdviceNotes), nameof(AdviceAt), nameof(CanApply), nameof(CanApplyNow), nameof(CanChat), nameof(Chat), nameof(TargetIndex), nameof(TargetText), nameof(HasOwnTarget) })
             Notify(name);
     }
 
@@ -297,6 +303,7 @@ public sealed class GameRow : INotifyPropertyChanged
         hasConfigPath = path != null;
         configMissing = path != null && !File.Exists(path);
         canRestore = path != null && File.Exists(path + ".orig");
+        wasApplied = path != null && File.Exists(path + ".bak");
         (configText, configDetail) = path != null
             ? configMissing
                 ? ("Конфиг ещё не создан: запустите игру один раз, выйдите и нажмите «Подобрать» снова", path)
@@ -304,7 +311,7 @@ public sealed class GameRow : INotifyPropertyChanged
             : Located ? ("У игры нет текстового конфига — настройки только для меню игры", note)
             : ("Конфиг: будет найден при подборе", "");
         adviceRows = BuildRows();
-        foreach (var name in new[] { nameof(ConfigText), nameof(ConfigDetail), nameof(HasConfigPath), nameof(ConfigMissing), nameof(CanRestore), nameof(SnapshotStale), nameof(HasRows), nameof(AdviceRows), nameof(AdviceHeading) })
+        foreach (var name in new[] { nameof(ConfigText), nameof(ConfigDetail), nameof(HasConfigPath), nameof(ConfigMissing), nameof(CanRestore), nameof(WasApplied), nameof(SnapshotStale), nameof(HasRows), nameof(AdviceRows), nameof(AdviceHeading) })
             Notify(name);
     }
 
@@ -328,7 +335,7 @@ public sealed class GameRow : INotifyPropertyChanged
 
     public void NotifyDefaultsChanged()
     {
-        foreach (var name in new[] { nameof(TargetIndex), nameof(TargetText), nameof(HasOwnTarget), nameof(HasKey), nameof(NoKey), nameof(CanAsk), nameof(CanLocate) })
+        foreach (var name in new[] { nameof(TargetIndex), nameof(TargetText), nameof(HasOwnTarget), nameof(HasKey), nameof(NoKey), nameof(CanAsk), nameof(CanLocate), nameof(CanChat) })
             Notify(name);
     }
 
@@ -347,3 +354,5 @@ public sealed class GameRow : INotifyPropertyChanged
         saveTimer.Start();
     }
 }
+
+public sealed record ChatTurnVm(bool Mine, string Text, string Attachments, string At);

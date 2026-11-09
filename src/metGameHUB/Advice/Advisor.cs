@@ -211,6 +211,13 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
         return ApplyOutcome.Applied;
     }
 
+    public void ClearChat(Game game)
+    {
+        if (!lib.Overrides.TryGetValue(game.InstallDir, out var o)) return;
+        o.Chat = null;
+        lib.Save(libraryPath);
+    }
+
     // Puts <file>.orig (the state before the first apply) back; the replaced content goes to .bak as on apply.
     public ApplyOutcome Restore(Game game)
     {

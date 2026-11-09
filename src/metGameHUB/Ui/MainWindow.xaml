@@ -192,6 +192,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <StackPanel Orientation="Horizontal">
@@ -344,6 +345,105 @@
                                     Visibility="{Binding CanRestore, Converter={StaticResource BoolToVisibility}}"/>
                             <TextBlock Text="{Binding ApplyStatus, Mode=OneWay}" Margin="12,0,0,0" VerticalAlignment="Center"
                                        Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="5" Margin="0,14,0,0" MaxWidth="900" HorizontalAlignment="Left"
+                                    Visibility="{Binding HasAdvice, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="Уточнить совет" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <Button Content="Очистить" Margin="10,0,0,0" VerticalAlignment="Center"
+                                        Click="ClearChat_Click" IsEnabled="{Binding IsIdle}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource LinkButton}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Chat.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
+                            <ScrollViewer x:Name="ChatScroll" MaxHeight="220" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Chat}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border MaxWidth="520" Margin="0,0,0,6" Padding="10,6" CornerRadius="8" HorizontalAlignment="Left">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="{DynamicResource Surface}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Mine}" Value="True">
+                                                                <Setter Property="Background" Value="{DynamicResource SurfaceHover}"/>
+                                                                <Setter Property="HorizontalAlignment" Value="Right"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Text, Mode=OneWay}" TextWrapping="Wrap"/>
+                                                    <TextBlock Text="{Binding Attachments, Mode=OneWay}" FontSize="11" TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource TextSecondary}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Attachments}" Value="">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <TextBlock Text="{Binding At, Mode=OneWay}" FontSize="11" Foreground="{DynamicResource TextSecondary}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                            <TextBlock Text="Задайте ключ API в настройках" Foreground="{DynamicResource TextSecondary}"
+                                       Visibility="{Binding NoKey, Converter={StaticResource BoolToVisibility}}"/>
+                            <StackPanel IsEnabled="{Binding CanChat}"
+                                        Visibility="{Binding HasKey, Converter={StaticResource BoolToVisibility}}">
+                                <ItemsControl x:Name="ChatChips">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,6,6" Padding="8,2,2,2" CornerRadius="6" Background="{DynamicResource Surface}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Label, Mode=OneWay}" VerticalAlignment="Center" MaxWidth="360" TextTrimming="CharacterEllipsis">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Refused}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <Button Content="✕" Margin="4,0,0,0" Padding="6,0" Style="{StaticResource LinkButton}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBox x:Name="ChatInput" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" MinHeight="34"
+                                         VerticalScrollBarVisibility="Auto" AllowDrop="True"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <Button x:Name="ChatAttach" Content="📎" ToolTip="Прикрепить файл"/>
+                                    <Button x:Name="ChatMic" Content="🎤" Margin="6,0,0,0" ToolTip="Голосовой ввод (Win+H)"/>
+                                    <Button x:Name="ChatSend" Content="Отправить" Margin="6,0,0,0" Style="{StaticResource AccentButton}"/>
+                                    <Button x:Name="ChatBetter" Content="👍 Стало лучше" Margin="14,0,0,0"
+                                            Visibility="{Binding WasApplied, Converter={StaticResource BoolToVisibility}}"/>
+                                    <Button x:Name="ChatWorse" Content="👎 Стало хуже" Margin="6,0,0,0"
+                                            Visibility="{Binding WasApplied, Converter={StaticResource BoolToVisibility}}"/>
+                                </StackPanel>
+                                <TextBlock Text="Текст и вложения уходят в Anthropic API" FontSize="11" Margin="0,6,0,0"
+                                           Foreground="{DynamicResource TextSecondary}"/>
+                            </StackPanel>
                         </StackPanel>
                     </Grid>
                 </Border>

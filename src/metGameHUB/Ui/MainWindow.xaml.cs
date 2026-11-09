@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     bool addingToSteam;
     bool updating;
     GameRow? askingRow;
+    readonly ChatPanel chat;
     Action? pendingCovers;
     Func<Task>? installUpdate;
 
@@ -42,6 +43,11 @@ public partial class MainWindow : Window
         this.onLibraryChanged = onLibraryChanged;
         advisor = new Advisor(() => settings.ClaudeApiKey, () => settings.ClaudeBaseUrl, () => new ClaudeChoice(settings.ClaudeModel, settings.ClaudeLocate, settings.ClaudeRead, settings.ClaudeAsk), lib, AppPaths.LibraryFile, Hardware.Detect, roots, IsRunning, ClaudeHttp);
         InitializeComponent();
+        chat = new ChatPanel(ChatInput, ChatChips, ChatAttach, ChatMic, ChatSend, ChatBetter, ChatWorse);
+        chat.Send += (text, ready) =>
+        {
+            if (GamePage.DataContext is GameRow row) _ = SendChatAsync(row, text, ready);
+        };
 
         GamesGrid.ItemsSource = rows;
         System.Windows.Data.CollectionViewSource.GetDefaultView(rows).Filter = r => ShowHiddenBox.IsChecked == true || !((GameRow)r).Hidden;
@@ -175,6 +181,7 @@ public partial class MainWindow : Window
         row.ApplyStatus = "";
         row.RefreshCanApply();
         row.RefreshConfig();
+        chat.Clear();
         ShowGamePage(true);
         Dispatcher.BeginInvoke(() => GoalSlider.Focus(), System.Windows.Threading.DispatcherPriority.Input);
     }
@@ -474,6 +481,50 @@ public partial class MainWindow : Window
             askingRow = null;
             SetAsking(row, false);
         }
+    }
+
+    // Shares the single `asking` slot with RunAdviceAsync, so Ask and Adjust never run at once.
+    async Task SendChatAsync(GameRow row, string text, IReadOnlyList<ChatAttachment> ready)
+    {
+        if (asking != null) return;
+        using var cts = new CancellationTokenSource();
+        asking = cts;
+        askingRow = row;
+        SetAsking(row, true);
+        SetStatus(row, "Модель думает…", "");
+        try
+        {
+            await advisor.AdjustAsync(row.Game, row.Goal, text, ready, cts.Token);
+            RefreshRows(row);
+            foreach (var r in Targets(row)) r.ApplyStatus = "";
+            SetStatus(row, "", "");
+            chat.Clear();
+            ChatScroll.ScrollToEnd();
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            SetStatus(row, "", "Запрос отменён");
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Advice chat: {ex}");
+            SetStatus(row, "", ex is TaskCanceledException ? "Время ожидания ответа истекло" : ex.Message);
+        }
+        finally
+        {
+            if (ReferenceEquals(asking, cts)) asking = null;
+            askingRow = null;
+            SetAsking(row, false);
+        }
+    }
+
+    void ClearChat_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not GameRow row) return;
+        if (MessageBox.Show(this, "Очистить историю уточнений?", "metGameHUB",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        advisor.ClearChat(row.Game);
+        RefreshRows(row);
     }
 
     // Shows the raw values at once; the model's readable version replaces them when it arrives.
