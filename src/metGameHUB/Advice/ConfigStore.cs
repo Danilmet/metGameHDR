@@ -2,17 +2,25 @@ using System.IO;
 
 namespace MetGameHUB.Advice;
 
-// Config access by path: today only files; the Advisor goes through here so another storage can be added.
+// Config access by path: a file, or a registry key (Unity PlayerPrefs, "HKCU\..."); the Advisor goes through here.
 public static class ConfigStore
 {
-    public static bool IsRegistry(string path) => false;
+    internal static Func<string> BackupDir = () => AppPaths.RegistryDir;
 
-    public static bool Exists(string path) => File.Exists(path);
+    public static bool IsRegistry(string path) =>
+        path.StartsWith(@"HKCU\", StringComparison.OrdinalIgnoreCase) || path.StartsWith(@"HKEY_CURRENT_USER\", StringComparison.OrdinalIgnoreCase);
 
-    public static DateTime Stamp(string path) => File.GetLastWriteTimeUtc(path);
+    static string Orig(string key) => Path.Combine(BackupDir(), RegistryConfig.BackupFileName(key) + ".orig.reg");
+
+    static string Bak(string key) => Path.Combine(BackupDir(), RegistryConfig.BackupFileName(key) + ".bak.reg");
+
+    public static bool Exists(string path) => IsRegistry(path) ? RegistryConfig.Exists(path) : File.Exists(path);
+
+    public static DateTime Stamp(string path) => IsRegistry(path) ? RegistryConfig.Stamp(path) : File.GetLastWriteTimeUtc(path);
 
     public static string? ReadText(string path)
     {
+        if (IsRegistry(path)) return RegistryConfig.Dump(path);
         try { return File.ReadAllText(path); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
     }
@@ -20,6 +28,7 @@ public static class ConfigStore
     // '<' (XML) is refused; '{' is accepted only as line JSON where every edited key already exists.
     public static bool CanWrite(string path, string text, IReadOnlyList<ConfigEdit> edits)
     {
+        if (IsRegistry(path)) return true;
         var first = text.TrimStart('﻿', ' ', '\t', '\r', '\n', '\0').FirstOrDefault();
         if (first == '<') return false;
         return first != '{' || edits.All(e => IniEditor.CurrentValue(text, null, e.Key) != null);
@@ -27,6 +36,12 @@ public static class ConfigStore
 
     public static bool Apply(string path, IReadOnlyList<ConfigEdit> edits)
     {
+        if (IsRegistry(path))
+        {
+            if (!File.Exists(Orig(path))) RegistryConfig.Backup(path, Orig(path));
+            RegistryConfig.Backup(path, Bak(path));
+            return RegistryConfig.Apply(path, edits);
+        }
         var original = File.ReadAllBytes(path);
         if (IniEditor.ApplyBytes(original, edits) is not { } updated)
         {
@@ -43,12 +58,18 @@ public static class ConfigStore
         return true;
     }
 
-    public static bool HasBackup(string path) => File.Exists(path + ".orig");
+    public static bool HasBackup(string path) => File.Exists(IsRegistry(path) ? Orig(path) : path + ".orig");
 
-    public static bool WasApplied(string path) => File.Exists(path + ".bak");
+    public static bool WasApplied(string path) => File.Exists(IsRegistry(path) ? Bak(path) : path + ".bak");
 
     public static void Restore(string path)
     {
+        if (IsRegistry(path))
+        {
+            RegistryConfig.Backup(path, Bak(path));
+            RegistryConfig.Restore(Orig(path));
+            return;
+        }
         if (File.Exists(path)) File.Copy(path, path + ".bak", overwrite: true);
         var tmp = path + ".tmp";
         File.Copy(path + ".orig", tmp, overwrite: true);
@@ -56,5 +77,6 @@ public static class ConfigStore
         catch { File.Delete(tmp); throw; }
     }
 
-    public static string? CurrentValue(string path, string text, string? section, string key) => IniEditor.CurrentValue(text, section, key);
+    public static string? CurrentValue(string path, string text, string? section, string key) =>
+        IsRegistry(path) ? RegistryConfig.CurrentValue(path, key) : IniEditor.CurrentValue(text, section, key);
 }

@@ -26,7 +26,12 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
 
         var note = location.Note;
         string? path = null;
-        if (location.Path != null && location.Format is "ini" or "json")
+        if (location.Format == "registry")
+        {
+            path = location.Path != null && RegistryConfig.IsAllowedKey(location.Path) ? RegistryConfig.Normalize(location.Path) : null;
+            if (path == null && location.Path != null) note = "Модель указала путь вне разрешённых папок";
+        }
+        else if (location.Path != null && location.Format is "ini" or "json")
         {
             path = TryResolve(location.Path, effective.InstallDir);
             if (path == null || !IsAllowedPath(path, effective.InstallDir, roots))
@@ -42,7 +47,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
         lib.Save(libraryPath);
         return path == null
             ? new ConfigStatus(null, false, "none", note)
-            : new ConfigStatus(path, File.Exists(path), location.Format, note);
+            : new ConfigStatus(path, ConfigStore.Exists(path), location.Format, note);
     }
 
     // The caller locates the config first; without a stored (and still allowed) path the request goes without a file.
@@ -236,16 +241,20 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
     }
 
     // The stored path is re-checked: library.json is user-editable and the file is later read and rewritten.
-    public static string? LocatedPath(Library lib, FinderRoots roots, Game game) =>
-        lib.Overrides.TryGetValue(game.InstallDir, out var o) && o.ConfigPath is { } p
-        && TryResolve(p, game.InstallDir) is { } full && IsAllowedPath(full, game.InstallDir, roots) ? full : null;
+    // A registry key is gated by IsAllowedKey: the Dump goes to the API and the key is later written.
+    public static string? LocatedPath(Library lib, FinderRoots roots, Game game)
+    {
+        if (!lib.Overrides.TryGetValue(game.InstallDir, out var o) || o.ConfigPath is not { } p) return null;
+        if (ConfigStore.IsRegistry(p)) return RegistryConfig.IsAllowedKey(p) ? RegistryConfig.Normalize(p) : null;
+        return TryResolve(p, game.InstallDir) is { } full && IsAllowedPath(full, game.InstallDir, roots) ? full : null;
+    }
 
     static (string Path, string Format, string Text, bool Truncated)? ReadConfig(string? path)
     {
         if (path == null || !ConfigStore.Exists(path)) return null;
         if (ConfigStore.ReadText(path) is not { } raw) return null;
         var text = ConfigFinder.MaskSecrets(raw.Length > MaxConfigChars ? raw[..MaxConfigChars] : raw);
-        var format = text.TrimStart('\uFEFF', ' ', '\t', '\r', '\n').StartsWith('{') ? "json" : "ini";
+        var format = ConfigStore.IsRegistry(path) ? "registry" : text.TrimStart('\uFEFF', ' ', '\t', '\r', '\n').StartsWith('{') ? "json" : "ini";
         return (path, format, text, raw.Length > MaxConfigChars);
     }
 

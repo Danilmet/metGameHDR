@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MetGameHUB.Advice;
 using MetGameHUB.Scan;
+using Microsoft.Win32;
 using Xunit;
 
 namespace MetGameHUB.Tests;
@@ -52,9 +53,14 @@ public class AdvisorTests
         public Library Lib = new();
         public bool Running;
         public Fake? Handler;
+        public string BackupDir;
+        string? regSub;
 
         public Env()
         {
+            BackupDir = Path.Combine(Dir, "regbak");
+            Directory.CreateDirectory(BackupDir);
+            ConfigStore.BackupDir = () => BackupDir;
             Install = Path.Combine(Dir, "game");
             Directory.CreateDirectory(Install);
             Directory.CreateDirectory(Path.Combine(Dir, "empty"));
@@ -74,7 +80,27 @@ public class AdvisorTests
         public Advice.Advice AdviceFor(string value = "2") =>
             new(new AdviceResult("s", [new SettingAdvice("Name", "1", "Rec", "S", "A", value, "r")], null), DateTime.UtcNow);
 
-        public void Dispose() { try { Directory.Delete(Dir, true); } catch (IOException) { } }
+        public string RegKey()
+        {
+            regSub = @"Software\metGameHUB.Tests\" + Guid.NewGuid().ToString("N");
+            using (var k = Registry.CurrentUser.CreateSubKey(regSub)) k.SetValue("Width_h1", 1920, RegistryValueKind.DWord);
+            var key = @"HKCU\" + regSub;
+            Lib.For(Game).ConfigPath = key;
+            return key;
+        }
+
+        public object? RegValue(string name)
+        {
+            using var k = Registry.CurrentUser.OpenSubKey(regSub!);
+            return k?.GetValue(name);
+        }
+
+        public void Dispose()
+        {
+            ConfigStore.BackupDir = () => AppPaths.RegistryDir;
+            if (regSub != null) Registry.CurrentUser.DeleteSubKeyTree(regSub, false);
+            try { Directory.Delete(Dir, true); } catch (IOException) { }
+        }
     }
 
     const string ReadJson = """{"settings":[{"name":"A","current":"1","section":"S","key":"A"}]}""";
@@ -847,5 +873,61 @@ public class AdvisorTests
 
         Assert.Equal(ApplyOutcome.BadEdit, outcome);
         Assert.Equal("[S]\r\nA=1\r\n", File.ReadAllText(e.Ini));
+    }
+
+    [Fact] public async Task LocateAsync_Registry_AllowedKeyStored()
+    {
+        using var e = new Env();
+        var status = await e.Advisor(Locate(@"HKEY_CURRENT_USER\Software\Co\Game\", "registry")).LocateAsync(e.Game, default);
+        Assert.Equal(@"HKCU\Software\Co\Game", status.Path);
+        Assert.Equal("registry", status.Format);
+        Assert.False(status.Exists);
+        Assert.Equal(@"HKCU\Software\Co\Game", e.Lib.For(e.Game).ConfigPath);
+    }
+
+    [Fact] public async Task LocateAsync_Registry_MicrosoftKey_Rejected()
+    {
+        using var e = new Env();
+        var status = await e.Advisor(Locate(@"HKCU\Software\Microsoft\Windows", "registry")).LocateAsync(e.Game, default);
+        Assert.Null(status.Path);
+        Assert.Null(e.Lib.For(e.Game).ConfigPath);
+        Assert.Equal("Модель указала путь вне разрешённых папок", e.Lib.For(e.Game).ConfigNote);
+    }
+
+    [Fact] public async Task AskAsync_RegistryKey_SendsDumpAsRegistry()
+    {
+        using var e = new Env(); e.RegKey();
+        await e.Advisor(Reply(AskJson)).AskAsync(e.Game, GoalStep.Balanced, default);
+        var cfg = SentConfig(e.Handler!.Body);
+        Assert.Equal("registry", cfg.GetProperty("format").GetString());
+        Assert.Equal("Width_h1=1920", cfg.GetProperty("text").GetString());
+    }
+
+    [Fact] public void Apply_RegistryKey_WritesAndBacksUp_ThenRestore()
+    {
+        using var e = new Env(); e.RegKey();
+        var advice = new Advice.Advice(new AdviceResult("s", [new SettingAdvice("W", "1920", "2560", null, "Width_h1", "2560", "r")], null), DateTime.UtcNow);
+        Assert.Equal(ApplyOutcome.Applied, e.Advisor().Apply(e.Game, advice));
+        Assert.Equal(2560, e.RegValue("Width_h1"));
+        Assert.Single(Directory.GetFiles(e.BackupDir, "*.orig.reg"));
+        Assert.Single(Directory.GetFiles(e.BackupDir, "*.bak.reg"));
+        Assert.Equal("2560", e.Lib.For(e.Game).Advice!.Result.Settings[0].Current);
+        Assert.Equal(ApplyOutcome.Applied, e.Advisor().Restore(e.Game));
+        Assert.Equal(1920, e.RegValue("Width_h1"));
+        Assert.Equal("1920", e.Lib.For(e.Game).Advice!.Result.Settings[0].Current);
+    }
+
+    [Fact] public void Apply_RegistryKeyMissing_FileMissing()
+    {
+        using var e = new Env();
+        e.Lib.For(e.Game).ConfigPath = @"HKCU\Software\metGameHUB.Tests\none" + Guid.NewGuid().ToString("N");
+        Assert.Equal(ApplyOutcome.FileMissing, e.Advisor().Apply(e.Game, new Advice.Advice(new AdviceResult("s", [new SettingAdvice("W", null, "1", null, "Width_h1", "1", "r")], null), DateTime.UtcNow)));
+    }
+
+    [Fact] public void Apply_RegistryBadName_BadEdit()
+    {
+        using var e = new Env(); e.RegKey();
+        var advice = new Advice.Advice(new AdviceResult("s", [new SettingAdvice("W", null, "1", null, "Nope_h9", "1", "r")], null), DateTime.UtcNow);
+        Assert.Equal(ApplyOutcome.BadEdit, e.Advisor().Apply(e.Game, advice));
     }
 }
