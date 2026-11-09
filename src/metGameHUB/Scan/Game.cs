@@ -27,4 +27,8 @@ public sealed class GameOverride
     public Advice.ConfigSnapshot? Snapshot { get; set; }
     // Advice-chat history; null = none yet.
     public List<Advice.ChatTurn>? Chat { get; set; }
+    // How Long to Beat lookup; null = not requested yet. Times in seconds.
+    public HltbInfo? Hltb { get; set; }
 }
+
+public sealed record HltbInfo(int? Id, string? Name, int Main, int Plus, int Full, string Query, DateTime Fetched);

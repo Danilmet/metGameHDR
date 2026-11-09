@@ -96,6 +96,23 @@ public class LibraryTests
         finally { File.Delete(path); }
     }
 
+    [Fact] public void Hltb_RoundTripsAndMissingIsNull()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        var g = new Game("G", @"C:\G", GameSource.Folder, null);
+        var lib = new Library { Games = [g] };
+        var info = new HltbInfo(5, "G", 1, 2, 3, "G", new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc));
+        lib.For(g).Hltb = info;
+        try
+        {
+            lib.Save(path);
+            Assert.Equal(info, Library.Load(path).Overrides[@"C:\G"].Hltb);
+            File.WriteAllText(path, """{ "Overrides": { "C:\\G": { "HdrEnabled": false } } }""");
+            Assert.Null(Library.Load(path).Overrides[@"C:\G"].Hltb);
+        }
+        finally { File.Delete(path); }
+    }
+
     [Fact] public void Load_OldFileWithoutAdviceFields_ReadsDefaults()
     {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
