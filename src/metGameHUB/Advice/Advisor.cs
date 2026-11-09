@@ -54,7 +54,6 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
             : new AdviceRequest(effective, hw, goal, null, null, null, false);
         var advice = new Advice(await client.AskAsync(request, ct), DateTime.UtcNow);
         var o = lib.For(game);
-        o.Target = goal;
         o.Advice = advice;
         lib.Save(libraryPath);
         return advice;

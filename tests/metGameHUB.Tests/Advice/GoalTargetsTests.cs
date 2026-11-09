@@ -10,6 +10,7 @@ public class GoalTargetsTests
     [InlineData(165, 60, 110, 165)]
     [InlineData(240, 60, 150, 240)]
     [InlineData(0, 60, 60, 60)]
+    [InlineData(1, 60, 60, 60)]
     public void For_TargetsFollowRefreshRate(int hz, int pretty, int balanced, int smooth)
     {
         Assert.Equal(((int?)30, GoalKind.AtLeast), GoalTargets.For(GoalStep.MaxQuality, hz));

@@ -1,7 +1,6 @@
 <Window x:Class="MetGameHUB.Ui.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:adv="clr-namespace:MetGameHUB.Advice"
         Title="metGameHUB" Width="1100" Height="680" MinWidth="820" MinHeight="520"
         Style="{StaticResource {x:Type Window}}" Background="Transparent"
         PreviewKeyDown="Window_PreviewKeyDown">

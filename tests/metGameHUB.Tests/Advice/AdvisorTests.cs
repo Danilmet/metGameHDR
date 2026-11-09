@@ -85,7 +85,7 @@ public class AdvisorTests
 
         Assert.Equal("sum", advice.Result.Summary);
         Assert.Same(advice, e.Lib.For(e.Game).Advice);
-        Assert.Equal(goal, e.Lib.For(e.Game).Target);
+        Assert.Null(e.Lib.For(e.Game).Target);
         Assert.Equal("sum", Library.Load(e.LibPath).For(e.Game).Advice!.Result.Summary);
     }
 

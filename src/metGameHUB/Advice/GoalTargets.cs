@@ -6,7 +6,7 @@ public static class GoalTargets
 {
     public static (int? Fps, GoalKind Kind) For(GoalStep step, int hz)
     {
-        if (hz <= 0) hz = 60;
+        if (hz <= 1) hz = 60;
         int pretty = Math.Min(60, hz);
         int smooth = hz;
         // Balanced snaps to a multiple of 10 and stays inside [pretty, smooth] for odd refresh rates.

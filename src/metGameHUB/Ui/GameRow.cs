@@ -319,7 +319,7 @@ public sealed class GameRow : INotifyPropertyChanged
 
     DispatcherTimer? saveTimer;
 
-    // Typing in the FPS box changes the goal per keystroke; the file is written once typing pauses.
+    // Dragging the goal slider changes the goal per tick; the file is written once it pauses.
     void SaveSoon()
     {
         saveTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(500), DispatcherPriority.Background,

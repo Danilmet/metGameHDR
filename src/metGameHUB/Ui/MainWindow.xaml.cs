@@ -24,7 +24,7 @@ public partial class MainWindow : Window
     readonly Library lib;
     readonly Advisor advisor;
     readonly FinderRoots roots = FinderRoots.Default();
-    readonly int monitorHz = Hardware.Detect().Hz is > 0 and var hz ? hz : 60;
+    readonly int monitorHz = Hardware.Detect().Hz is > 1 and var hz ? hz : 60;
     readonly Action onLibraryChanged;
     readonly ObservableCollection<GameRow> rows = [];
     readonly Covers covers = new(Http, AppPaths.CoversDir);
@@ -371,7 +371,6 @@ public partial class MainWindow : Window
             UpdateButtons();
         }
     }
-
 
     void NotifyDefaultsChanged()
     {
