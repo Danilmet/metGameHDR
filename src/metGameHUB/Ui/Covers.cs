@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -115,20 +116,32 @@ public sealed class Covers(HttpClient http, string cacheDir)
         }
     }
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    static extern uint PrivateExtractIcons(string file, int index, int cx, int cy, IntPtr[] icons, IntPtr[]? ids, uint count, uint flags);
+
+    [DllImport("user32.dll")]
+    static extern bool DestroyIcon(IntPtr icon);
+
+    // ExtractAssociatedIcon is capped at 32x32 (blurry on HiDPI); this takes the exe's own icon at 96 px.
+    // Null when the exe has no icon resource, so the caller can fall back to the cover.
     public static ImageSource? ExeIcon(string? exePath)
     {
         if (exePath is null || !File.Exists(exePath)) return null;
+        var icons = new IntPtr[1];
+        if (PrivateExtractIcons(exePath, 0, 96, 96, icons, null, 1, 0) is 0 or uint.MaxValue || icons[0] == IntPtr.Zero) return null;
         try
         {
-            using var icon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
-            if (icon is null) return null;
-            var src = Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+            var src = Imaging.CreateBitmapSourceFromHIcon(icons[0], Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
             src.Freeze();
             return src;
         }
         catch (Exception)
         {
             return null;
+        }
+        finally
+        {
+            DestroyIcon(icons[0]);
         }
     }
 }

@@ -289,13 +289,24 @@ public partial class MainWindow : Window
         {
             if (Covers.LocalPath(row.Game, steam, shortcuts, gridDir, AppPaths.CoversDir) is { } path
                 && Covers.LoadImage(path) is { } image)
-            {
                 row.SetCover(image);
-                continue;
-            }
-            row.Icon = Covers.ExeIcon(lib.MainExeOf(row.Game));
-            if (db != null) _ = FetchCoverAsync(row, db);
+            else if (db != null)
+                _ = FetchCoverAsync(row, db);
         }
+        // Store games have no MainExe, so their icon comes from the exe the folder scanner would pick.
+        var exes = rows.Select(r => (Row: r, Exe: lib.MainExeOf(r.Game))).ToList();
+        _ = Task.Run(() =>
+        {
+            foreach (var (row, exe) in exes)
+            {
+                try
+                {
+                    if (Covers.ExeIcon(exe ?? MainExe.Pick(row.Game.InstallDir, row.Game.Name)) is { } icon)
+                        Dispatcher.BeginInvoke(() => row.Icon = icon);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+            }
+        });
     }
 
     async Task FetchCoverAsync(GameRow row, SteamGridDb db)

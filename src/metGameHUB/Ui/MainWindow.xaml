@@ -189,20 +189,25 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <!-- Shares GamesGrid's default view, so the hidden-games filter applies here too. -->
-                <ListBox x:Name="GameStrip" Width="52" Margin="0,0,10,0" ItemsSource="{Binding ItemsSource, ElementName=GamesGrid}"
+                <ListBox x:Name="GameStrip" Margin="0,0,10,0" ItemsSource="{Binding ItemsSource, ElementName=GamesGrid}"
                          SelectionChanged="GameStrip_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Border x:Name="Tile" Width="44" Height="44" Margin="0,2" CornerRadius="8" BorderThickness="2"
+                            <Border x:Name="Tile" Width="60" Height="60" Margin="0,3,6,3" CornerRadius="10" BorderThickness="2"
                                     BorderBrush="Transparent" Background="{DynamicResource Surface}" ToolTip="{Binding Name}">
                                 <Grid>
-                                    <TextBlock x:Name="Letter" Text="{Binding Initial}" Visibility="Collapsed"
-                                               FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    <Image Source="{Binding Icon}" Width="32" Height="32"/>
+                                    <Grid.Clip>
+                                        <RectangleGeometry Rect="0,0,56,56" RadiusX="8" RadiusY="8"/>
+                                    </Grid.Clip>
+                                    <TextBlock x:Name="Letter" Text="{Binding Initial}" FontSize="20" FontWeight="SemiBold" Visibility="Collapsed"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <Image x:Name="CoverCrop" Source="{Binding Cover}" Stretch="UniformToFill" Visibility="Collapsed"/>
+                                    <Image Source="{Binding Icon}" Width="44" Height="44"/>
                                 </Grid>
                             </Border>
                             <DataTemplate.Triggers>
                                 <DataTrigger Binding="{Binding Icon}" Value="{x:Null}">
+                                    <Setter TargetName="CoverCrop" Property="Visibility" Value="Visible"/>
                                     <Setter TargetName="Letter" Property="Visibility" Value="Visible"/>
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding Hidden}" Value="True">
