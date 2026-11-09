@@ -21,6 +21,16 @@ public static class RegistryConfig
         IntPtr lpcSubKeys, IntPtr lpcbMaxSubKeyLen, IntPtr lpcbMaxClassLen, IntPtr lpcValues, IntPtr lpcbMaxValueNameLen,
         IntPtr lpcbMaxValueLen, IntPtr lpcbSecurityDescriptor, out long lpftLastWriteTime);
 
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int RegSetValueExW(SafeRegistryHandle hKey, string lpValueName, int Reserved, int dwType, byte[] lpData, int cbData);
+
+    // Unity keeps float prefs as a REG_DWORD with 8 bytes of double; RegistryKey.SetValue cannot write that shape.
+    internal static void WriteDouble(RegistryKey k, string name, double d)
+    {
+        var code = RegSetValueExW(k.Handle, name, 0, 4, BitConverter.GetBytes(BitConverter.DoubleToInt64Bits(d)), 8);
+        if (code != 0) throw new IOException($"RegSetValueEx: {code}");
+    }
+
     public static string Normalize(string key)
     {
         var k = key.Trim().Replace('/', '\\').TrimEnd('\\');
@@ -52,6 +62,8 @@ public static class RegistryConfig
             ? DateTime.FromFileTimeUtc(ft) : default;
     }
 
+    private const int MaxDumpValue = 256;
+
     public static string Dump(string key)
     {
         using var k = Registry.CurrentUser.OpenSubKey(SubKey(key));
@@ -60,7 +72,9 @@ public static class RegistryConfig
         foreach (var name in k.GetValueNames())
         {
             var text = Format(k.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames), k.GetValueKind(name));
-            if (text != null) lines.Add(name + "=" + text);
+            // Blobs and multi-line strings break name=value lines and eat the request budget.
+            if (text == null || text.Length > MaxDumpValue || text.Contains('\r') || text.Contains('\n')) continue;
+            lines.Add(name + "=" + (ConfigFinder.IsSecretKey(name) ? "***" : text));
         }
         lines.Sort(StringComparer.OrdinalIgnoreCase);
         return string.Join("\n", lines);
@@ -103,24 +117,38 @@ public static class RegistryConfig
             throw new IOException($"reg {verb}: {(string.IsNullOrWhiteSpace(stderr) ? stdout.Result : stderr).Trim()}");
     }
 
-    // All-or-nothing: every edit is resolved and converted before the first SetValue.
+    // All-or-nothing: Prepare resolves and converts every edit; null means nothing may be written.
     public static bool Apply(string key, IReadOnlyList<ConfigEdit> edits)
     {
-        using var k = Registry.CurrentUser.OpenSubKey(SubKey(key), writable: true);
-        if (k == null) return false;
+        if (Prepare(key, edits) is not { } writes) return false;
+        Write(key, writes);
+        return true;
+    }
+
+    internal static List<(string Name, object Data, RegistryValueKind Kind)>? Prepare(string key, IReadOnlyList<ConfigEdit> edits)
+    {
+        using var k = Registry.CurrentUser.OpenSubKey(SubKey(key));
+        if (k == null) return null;
         var names = k.GetValueNames();
         var writes = new List<(string Name, object Data, RegistryValueKind Kind)>();
         foreach (var e in edits)
         {
             var name = ResolveName(names, e.Key);
-            if (name == null) return false;
+            if (name == null) return null;
             var kind = k.GetValueKind(name);
             var converted = Convert(e.Value, Classify(k.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames), kind));
-            if (converted == null) return false;
+            if (converted == null) return null;
             writes.Add((name, converted.Value.Data, converted.Value.Kind));
         }
-        foreach (var w in writes) k.SetValue(w.Name, w.Data, w.Kind);
-        return true;
+        return writes;
+    }
+
+    internal static void Write(string key, List<(string Name, object Data, RegistryValueKind Kind)> writes)
+    {
+        using var k = Registry.CurrentUser.OpenSubKey(SubKey(key), writable: true) ?? throw new IOException($"Registry key is gone: {key}");
+        foreach (var w in writes)
+            if (w.Data is double d) WriteDouble(k, w.Name, d);
+            else k.SetValue(w.Name, w.Data, w.Kind);
     }
 
     internal static string? ResolveName(IReadOnlyList<string> names, string key)
@@ -137,8 +165,8 @@ public static class RegistryConfig
         {
             case ValueKind.Int when int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i):
                 return (i, RegistryValueKind.DWord);
-            case ValueKind.Float when float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var f):
-                return (BitConverter.SingleToInt32Bits(f), RegistryValueKind.DWord);
+            case ValueKind.Double when double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) && double.IsFinite(d):
+                return (d, RegistryValueKind.DWord);
             case ValueKind.BinaryString:
                 return (Encoding.UTF8.GetBytes(value + "\0"), RegistryValueKind.Binary);
             case ValueKind.Sz:
@@ -148,15 +176,17 @@ public static class RegistryConfig
         }
     }
 
-    internal enum ValueKind { None, Int, Float, BinaryString, Sz }
+    internal enum ValueKind { None, Int, Double, BinaryString, Sz }
 
-    // Unity writes floats as raw IEEE-754 bits: small ints are denormal-sized as floats, so only large finite patterns count as Float.
+    // An 8-byte REG_DWORD (Unity float pref) comes back from GetValue as long holding double bits.
     internal static ValueKind Classify(object? data, RegistryValueKind kind)
     {
         switch (kind)
         {
-            case RegistryValueKind.DWord when data is int i:
-                return unchecked((uint)i) > 1_000_000 && float.IsFinite(BitConverter.Int32BitsToSingle(i)) ? ValueKind.Float : ValueKind.Int;
+            case RegistryValueKind.DWord when data is int:
+                return ValueKind.Int;
+            case RegistryValueKind.DWord when data is long l:
+                return double.IsFinite(BitConverter.Int64BitsToDouble(l)) ? ValueKind.Double : ValueKind.None;
             case RegistryValueKind.Binary when data is byte[] b:
                 return Utf8(b) != null ? ValueKind.BinaryString : ValueKind.None;
             case RegistryValueKind.String when data is string:
@@ -169,7 +199,7 @@ public static class RegistryConfig
     internal static string? Format(object? data, RegistryValueKind kind) => Classify(data, kind) switch
     {
         ValueKind.Int => ((int)data!).ToString(CultureInfo.InvariantCulture),
-        ValueKind.Float => BitConverter.Int32BitsToSingle((int)data!).ToString("R", CultureInfo.InvariantCulture),
+        ValueKind.Double => BitConverter.Int64BitsToDouble((long)data!).ToString("R", CultureInfo.InvariantCulture),
         ValueKind.BinaryString => Utf8((byte[])data!),
         ValueKind.Sz => (string)data!,
         _ => null,

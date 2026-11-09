@@ -6,20 +6,25 @@ namespace MetGameHUB.Tests;
 
 public sealed class TestKey : IDisposable
 {
-    public string Key = @"HKCU\Software\metGameHUB.Tests\" + Guid.NewGuid().ToString("N");
+    readonly string root = @"Software\metGameHUB.Tests\" + Guid.NewGuid().ToString("N");
+    public string Key;
     public RegistryKey Reg;
 
-    public TestKey() => Reg = Registry.CurrentUser.CreateSubKey(RegistryConfig.SubKey(Key));
+    public TestKey(string suffix = "")
+    {
+        Key = @"HKCU\" + root + suffix;
+        Reg = Registry.CurrentUser.CreateSubKey(RegistryConfig.SubKey(Key));
+    }
 
     public void Dword(string name, int v) => Reg.SetValue(name, v, RegistryValueKind.DWord);
-    public void FloatBits(string name, float v) => Reg.SetValue(name, BitConverter.SingleToInt32Bits(v), RegistryValueKind.DWord);
+    public void DoubleDword(string name, double v) => RegistryConfig.WriteDouble(Reg, name, v);
     public void Bin(string name, string v) => Reg.SetValue(name, Encoding.UTF8.GetBytes(v + "\0"), RegistryValueKind.Binary);
     public void Sz(string name, string v) => Reg.SetValue(name, v, RegistryValueKind.String);
 
     public void Dispose()
     {
         Reg.Dispose();
-        Registry.CurrentUser.DeleteSubKeyTree(RegistryConfig.SubKey(Key), throwOnMissingSubKey: false);
+        Registry.CurrentUser.DeleteSubKeyTree(root, throwOnMissingSubKey: false);
     }
 }
 
@@ -54,7 +59,7 @@ public class RegistryConfigTests
         using var k = new TestKey();
         k.Dword("Screenmanager Resolution Width_h182942802", 1920);
         k.Dword("UnitySelectMonitor_h17969598", -1);
-        k.FloatBits("Volume_h3", 0.75f);
+        k.DoubleDword("Volume_h3", 0.75);
         k.Bin("Lang_h4", "ru");
         k.Sz("Plain", "x");
         k.Reg.SetValue("Q", 5L, RegistryValueKind.QWord);
@@ -63,18 +68,48 @@ public class RegistryConfigTests
             RegistryConfig.Dump(k.Key));
     }
 
+    [Fact] public void Dump_IntAboveMillion_StaysInt()
+    {
+        using var k = new TestKey(); k.Dword("Big_h1", 5_000_000);
+        Assert.Equal("Big_h1=5000000", RegistryConfig.Dump(k.Key));
+    }
+
+    [Fact] public void Dump_MasksSecretByFullName()
+    {
+        using var k = new TestKey(); k.Bin("Player Auth Token_h1", "abc"); k.Bin("Player Name_h2", "Bob");
+        Assert.Equal("Player Auth Token_h1=***\nPlayer Name_h2=Bob", RegistryConfig.Dump(k.Key));
+    }
+
+    [Fact] public void Dump_SkipsMultilineAndLongValues()
+    {
+        using var k = new TestKey();
+        k.Sz("Multi", "a\nb"); k.Bin("Long_h1", new string('x', 300)); k.Bin("Edge_h2", new string('y', 256));
+        Assert.Equal("Edge_h2=" + new string('y', 256), RegistryConfig.Dump(k.Key));
+    }
+
     [Fact] public void Dump_MissingKey_Empty() => Assert.Equal("", RegistryConfig.Dump(@"HKCU\Software\metGameHUB.Tests\none" + Guid.NewGuid().ToString("N")));
 
     [Fact] public void Apply_KeepsTypes()
     {
         using var k = new TestKey();
-        k.Dword("Width_h1", 1920); k.FloatBits("Vol_h2", 0.5f); k.Bin("Lang_h3", "ru"); k.Sz("Plain", "x");
+        k.Dword("Width_h1", 1920); k.DoubleDword("Vol_h2", 0.5); k.Bin("Lang_h3", "ru"); k.Sz("Plain", "x");
         Assert.True(RegistryConfig.Apply(k.Key, [new(null, "Width_h1", "2560"), new(null, "Vol_h2", "0.25"), new(null, "Lang_h3", "en"), new(null, "Plain", "y")]));
         Assert.Equal(2560, k.Reg.GetValue("Width_h1"));
         Assert.Equal(RegistryValueKind.DWord, k.Reg.GetValueKind("Vol_h2"));
-        Assert.Equal(0.25f, BitConverter.Int32BitsToSingle((int)k.Reg.GetValue("Vol_h2")!));
+        Assert.Equal(BitConverter.DoubleToInt64Bits(0.25), k.Reg.GetValue("Vol_h2"));
         Assert.Equal("en\0"u8.ToArray(), k.Reg.GetValue("Lang_h3"));
         Assert.Equal("y", k.Reg.GetValue("Plain"));
+    }
+
+    [Theory]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("1e400")]
+    public void Apply_NonFiniteDouble_False(string value)
+    {
+        using var k = new TestKey(); k.DoubleDword("Vol_h1", 0.5);
+        Assert.False(RegistryConfig.Apply(k.Key, [new(null, "Vol_h1", value)]));
+        Assert.Equal(BitConverter.DoubleToInt64Bits(0.5), k.Reg.GetValue("Vol_h1"));
     }
 
     [Fact] public void Apply_MatchesNameWithoutHash()
@@ -123,9 +158,9 @@ public class RegistryConfigTests
         Assert.Equal("Низкое", RegistryConfig.CurrentValue(k.Key, "Качество_h1"));
     }
 
-    [Fact] public void CurrentValue_FloatAndMissing()
+    [Fact] public void CurrentValue_DoubleAndMissing()
     {
-        using var k = new TestKey(); k.FloatBits("Vol_h2", 0.75f);
+        using var k = new TestKey(); k.DoubleDword("Vol_h2", 0.75);
         Assert.Equal("0.75", RegistryConfig.CurrentValue(k.Key, "Vol"));
         Assert.Null(RegistryConfig.CurrentValue(k.Key, "Nope"));
     }
@@ -155,6 +190,22 @@ public class RegistryConfigTests
             k.Reg.SetValue("Width_h1", 2560, RegistryValueKind.DWord);
             RegistryConfig.Restore(file);
             Assert.Equal(1920, Registry.CurrentUser.OpenSubKey(RegistryConfig.SubKey(k.Key))!.GetValue("Width_h1"));
+        }
+        finally { File.Delete(file); }
+    }
+
+    [Fact] public void Dump_And_Apply_CyrillicKeyPath()
+    {
+        using var k = new TestKey(@"\Студия\Игра"); k.Dword("Width_h1", 1920);
+        Assert.Equal("Width_h1=1920", RegistryConfig.Dump(k.Key));
+        Assert.True(RegistryConfig.Apply(k.Key, [new(null, "Width", "2560")]));
+        var file = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".reg");
+        try
+        {
+            RegistryConfig.Backup(k.Key, file);
+            k.Reg.SetValue("Width_h1", 800, RegistryValueKind.DWord);
+            RegistryConfig.Restore(file);
+            Assert.Equal("2560", RegistryConfig.CurrentValue(k.Key, "Width"));
         }
         finally { File.Delete(file); }
     }
