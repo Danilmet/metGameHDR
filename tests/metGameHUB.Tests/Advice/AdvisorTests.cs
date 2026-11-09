@@ -75,6 +75,152 @@ public class AdvisorTests
         public void Dispose() { try { Directory.Delete(Dir, true); } catch (IOException) { } }
     }
 
+    const string ReadJson = """{"settings":[{"name":"A","current":"1","section":"S","key":"A"}]}""";
+    const string AskJson = """{"summary":"sum","settings":[{"name":"A","current":"1","recommended":"Rec","section":"S","key":"A","value":"9","reason":"r"}],"notes":null}""";
+
+    static ConfigSnapshot Snap(Env e, string current = "1") =>
+        new([new CurrentSetting("A", current, "S", "A")], DateTime.UtcNow, File.GetLastWriteTimeUtc(e.Ini));
+
+    static JsonElement SentCurrent(string body)
+    {
+        using var doc = JsonDocument.Parse(body);
+        using var user = JsonDocument.Parse(doc.RootElement.GetProperty("messages")[0].GetProperty("content").GetString()!);
+        return user.RootElement.GetProperty("current").Clone();
+    }
+
+    [Fact]
+    public async Task ReadAsync_StoresSnapshotWithStamp()
+    {
+        using var e = new Env();
+
+        var snap = await e.Advisor(Reply(ReadJson)).ReadAsync(e.Game, CancellationToken.None);
+
+        Assert.Equal("A", snap!.Settings[0].Name);
+        Assert.Equal(File.GetLastWriteTimeUtc(e.Ini), snap.FileStamp);
+        Assert.Equal(File.GetLastWriteTimeUtc(e.Ini), Library.Load(e.LibPath).For(e.Game).Snapshot!.FileStamp);
+    }
+
+    [Fact]
+    public async Task ReadAsync_NoFile_ReturnsNullWithoutRequest()
+    {
+        using var e = new Env();
+        e.Lib.For(e.Game).ConfigPath = Path.Combine(e.Install, "none.ini");
+
+        var snap = await e.Advisor(Reply(ReadJson)).ReadAsync(e.Game, CancellationToken.None);
+
+        Assert.Null(snap);
+        Assert.Equal("", e.Handler!.Body);
+    }
+
+    [Fact]
+    public async Task ReadAsync_SendsMaskedText()
+    {
+        using var e = new Env();
+        File.WriteAllText(e.Ini, "[S]\r\nA=1\r\nPassword=hunter2\r\n");
+
+        await e.Advisor(Reply(ReadJson)).ReadAsync(e.Game, CancellationToken.None);
+
+        Assert.Contains("Password=***", e.Handler!.Body);
+        Assert.DoesNotContain("hunter2", e.Handler.Body);
+    }
+
+    [Fact]
+    public void IsSnapshotFresh_ChangedStamp_False()
+    {
+        using var e = new Env();
+        e.Lib.For(e.Game).Snapshot = Snap(e);
+        Assert.True(Advisor.IsSnapshotFresh(e.Lib, e.Roots, e.Game));
+
+        File.SetLastWriteTimeUtc(e.Ini, DateTime.UtcNow.AddMinutes(1));
+
+        Assert.False(Advisor.IsSnapshotFresh(e.Lib, e.Roots, e.Game));
+    }
+
+    [Fact]
+    public void IsSnapshotFresh_MissingFile_False()
+    {
+        using var e = new Env();
+        e.Lib.For(e.Game).Snapshot = Snap(e);
+        File.Delete(e.Ini);
+
+        Assert.False(Advisor.IsSnapshotFresh(e.Lib, e.Roots, e.Game));
+    }
+
+    [Fact]
+    public void Snapshot_RoundTrip_StaysFresh()
+    {
+        using var e = new Env();
+        e.Lib.For(e.Game).Snapshot = Snap(e);
+        e.Lib.Save(e.LibPath);
+
+        Assert.True(Advisor.IsSnapshotFresh(Library.Load(e.LibPath), e.Roots, e.Game));
+    }
+
+    [Fact]
+    public async Task Locate_OtherPath_ResetsSnapshot()
+    {
+        using var e = new Env();
+        e.Lib.For(e.Game).Snapshot = Snap(e);
+
+        await e.Advisor(Locate(@"<InstallDir>\other.ini", "ini")).LocateAsync(e.Game, CancellationToken.None);
+
+        Assert.Null(e.Lib.For(e.Game).Snapshot);
+    }
+
+    [Fact]
+    public async Task Locate_SamePath_KeepsSnapshot()
+    {
+        using var e = new Env();
+        e.Lib.For(e.Game).Snapshot = Snap(e);
+
+        await e.Advisor(Locate(e.Ini, "ini")).LocateAsync(e.Game, CancellationToken.None);
+
+        Assert.NotNull(e.Lib.For(e.Game).Snapshot);
+    }
+
+    [Fact]
+    public async Task AskAsync_SendsCurrentOnlyWhenFresh()
+    {
+        using var e = new Env();
+        e.Lib.For(e.Game).Snapshot = Snap(e);
+        await e.Advisor(Reply(EmptyAdvice)).AskAsync(e.Game, GoalStep.Balanced, CancellationToken.None);
+        Assert.Equal("A", SentCurrent(e.Handler!.Body)[0].GetProperty("name").GetString());
+
+        e.Lib.For(e.Game).Snapshot = Snap(e);
+        File.SetLastWriteTimeUtc(e.Ini, DateTime.UtcNow.AddMinutes(1));
+        await e.Advisor(Reply(EmptyAdvice)).AskAsync(e.Game, GoalStep.Balanced, CancellationToken.None);
+        Assert.Equal(JsonValueKind.Null, SentCurrent(e.Handler!.Body).ValueKind);
+    }
+
+    [Fact]
+    public async Task AskAsync_UpdatesSnapshotFromAnswer()
+    {
+        using var e = new Env();
+
+        await e.Advisor(Reply(AskJson)).AskAsync(e.Game, GoalStep.Balanced, CancellationToken.None);
+
+        var snap = e.Lib.For(e.Game).Snapshot!;
+        Assert.Equal("1", snap.Settings[0].Current);
+        Assert.True(Advisor.IsSnapshotFresh(e.Lib, e.Roots, e.Game));
+    }
+
+    [Fact]
+    public void Apply_And_Restore_KeepSnapshotFresh()
+    {
+        using var e = new Env();
+        var advice = e.AdviceFor();
+        e.Lib.For(e.Game).Advice = advice;
+        e.Lib.For(e.Game).Snapshot = Snap(e);
+
+        e.Advisor().Apply(e.Game, advice);
+        Assert.Equal("Rec", e.Lib.For(e.Game).Snapshot!.Settings[0].Current);
+        Assert.True(Advisor.IsSnapshotFresh(e.Lib, e.Roots, e.Game));
+
+        e.Advisor().Restore(e.Game);
+        Assert.Equal("1", e.Lib.For(e.Game).Snapshot!.Settings[0].Current);
+        Assert.True(Advisor.IsSnapshotFresh(e.Lib, e.Roots, e.Game));
+    }
+
     [Fact]
     public async Task AskAsync_StoresAdviceOnOverrideAndSaves()
     {

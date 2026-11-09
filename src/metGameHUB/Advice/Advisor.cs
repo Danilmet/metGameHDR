@@ -35,6 +35,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
             }
         }
         var o = lib.For(game);
+        if (!string.Equals(o.ConfigPath, path, StringComparison.OrdinalIgnoreCase)) o.Snapshot = null;
         o.ConfigPath = path;
         o.ConfigNote = note ?? "";
         lib.Save(libraryPath);
@@ -49,14 +50,44 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
         var client = Client();
         var hw = hardware();
         var effective = EffectiveGame(lib, game);
-        var request = ReadConfig(LocatedPath(lib, roots, game)) is { } c
-            ? new AdviceRequest(effective, hw, goal, c.Path, c.Format, c.Text, c.Truncated)
+        var path = LocatedPath(lib, roots, game);
+        var current = IsSnapshotFresh(lib, roots, game) ? lib.For(game).Snapshot!.Settings : null;
+        var request = ReadConfig(path) is { } c
+            ? new AdviceRequest(effective, hw, goal, c.Path, c.Format, c.Text, c.Truncated, current)
             : new AdviceRequest(effective, hw, goal, null, null, null, false);
         var advice = new Advice(await client.AskAsync(request, ct), DateTime.UtcNow);
         var o = lib.For(game);
         o.Advice = advice;
+        if (path != null && TryFileText(path) is { } text)
+        {
+            var rows = advice.Result.Settings.Where(s => s.Key != null).Select(s => new CurrentSetting(s.Name, s.Current, s.Section, s.Key)).ToList();
+            o.Snapshot = new ConfigSnapshot(UnrealScalability.Merge(rows, text), DateTime.UtcNow, File.GetLastWriteTimeUtc(path));
+        }
         lib.Save(libraryPath);
         return advice;
+    }
+
+    // Reads the located file and stores its current values; null (and no request) without an existing file.
+    public async Task<ConfigSnapshot?> ReadAsync(Game game, CancellationToken ct)
+    {
+        var client = Client();
+        var path = LocatedPath(lib, roots, game);
+        if (ReadConfig(path) is not { } c || TryFileText(path!) is not { } text) return null;
+        var result = await client.ReadAsync(new ReadRequest(EffectiveGame(lib, game), c.Path, c.Format, c.Text, c.Truncated), ct);
+        var snapshot = new ConfigSnapshot(UnrealScalability.Merge(result.Settings, text), DateTime.UtcNow, File.GetLastWriteTimeUtc(path!));
+        lib.For(game).Snapshot = snapshot;
+        lib.Save(libraryPath);
+        return snapshot;
+    }
+
+    public static bool IsSnapshotFresh(Library lib, FinderRoots roots, Game game) =>
+        lib.Overrides.TryGetValue(game.InstallDir, out var o) && o.Snapshot is { } s
+        && LocatedPath(lib, roots, game) is { } p && File.Exists(p) && File.GetLastWriteTimeUtc(p) == s.FileStamp;
+
+    static string? TryFileText(string path)
+    {
+        try { return File.ReadAllText(path); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
     }
 
     public static Game EffectiveGame(Library lib, Game game) =>
@@ -123,7 +154,17 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
         catch { File.Delete(tmp); throw; }
         // The file now holds the recommended values, so the stored advice shows them as current.
         var settings = advice.Result.Settings.Select(x => x.Key != null ? x with { Current = x.Recommended } : x).ToList();
-        lib.For(game).Advice = advice with { Result = advice.Result with { Settings = settings } };
+        var o = lib.For(game);
+        o.Advice = advice with { Result = advice.Result with { Settings = settings } };
+        if (o.Snapshot is { } snap)
+        {
+            var rec = advice.Result.Settings.Where(x => x.Key != null).GroupBy(x => (x.Section, x.Key!)).ToDictionary(g => g.Key, g => g.Last().Recommended);
+            o.Snapshot = snap with
+            {
+                Settings = snap.Settings.Select(x => x.Key != null && rec.TryGetValue((x.Section, x.Key), out var r) ? x with { Current = r } : x).ToList(),
+                FileStamp = File.GetLastWriteTimeUtc(path),
+            };
+        }
         lib.Save(libraryPath);
         return ApplyOutcome.Applied;
     }
@@ -147,6 +188,16 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
             var text = File.ReadAllText(path);
             var settings = advice.Result.Settings.Select(x => x.Key != null ? x with { Current = IniEditor.CurrentValue(text, x.Section, x.Key) } : x).ToList();
             o.Advice = advice with { Result = advice.Result with { Settings = settings } };
+        }
+        if (lib.Overrides.TryGetValue(game.InstallDir, out var po) && po.Snapshot is { } snap)
+        {
+            var text = File.ReadAllText(path);
+            po.Snapshot = snap with
+            {
+                Settings = snap.Settings.Select(x => x.Key != null && IniEditor.CurrentValue(text, x.Section, x.Key) is { } raw
+                    ? x with { Current = UnrealScalability.Describe(x.Section, x.Key, raw)?.Current ?? raw } : x).ToList(),
+                FileStamp = File.GetLastWriteTimeUtc(path),
+            };
         }
         lib.Save(libraryPath);
         return ApplyOutcome.Applied;

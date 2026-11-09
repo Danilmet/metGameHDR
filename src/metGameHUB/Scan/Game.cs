@@ -23,4 +23,6 @@ public sealed class GameOverride
     public string? ConfigPath { get; set; }
     // The model's note from the locate step ("" = located, no note). Located = ConfigPath != null || ConfigNote != null.
     public string? ConfigNote { get; set; }
+    // Current values read from the config file; valid while the file's write time equals FileStamp.
+    public Advice.ConfigSnapshot? Snapshot { get; set; }
 }
