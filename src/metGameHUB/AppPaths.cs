@@ -36,5 +36,15 @@ public static class AppPaths
         }
     }
 
+    public static string RegistryDir
+    {
+        get
+        {
+            var dir = Path.Combine(Dir, "registry");
+            Directory.CreateDirectory(dir);
+            return dir;
+        }
+    }
+
     public static string UpdateDir => Path.Combine(Dir, "update");
 }

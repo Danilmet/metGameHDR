@@ -1,5 +1,8 @@
+using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
@@ -68,6 +71,36 @@ public static class RegistryConfig
         using var k = Registry.CurrentUser.OpenSubKey(SubKey(key));
         var real = k == null ? null : ResolveName(k.GetValueNames(), name);
         return real == null ? null : Format(k!.GetValue(real, null, RegistryValueOptions.DoNotExpandEnvironmentNames), k.GetValueKind(real));
+    }
+
+    public static string BackupFileName(string key)
+    {
+        var norm = Normalize(key);
+        var parts = norm.Split('\\').TakeLast(2).Select(p => string.Concat(p.Select(c => Array.IndexOf(Path.GetInvalidFileNameChars(), c) >= 0 ? '_' : c)));
+        var safe = string.Join("_", parts);
+        if (safe.Length > 60) safe = safe[..60];
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(norm.ToUpperInvariant()));
+        return safe + "-" + System.Convert.ToHexString(hash, 0, 4).ToLowerInvariant();
+    }
+
+    public static void Backup(string key, string file) => RunReg("export", @"HKEY_CURRENT_USER\" + SubKey(key), file, "/y");
+
+    public static void Restore(string file) => RunReg("import", file);
+
+    private static void RunReg(string verb, params string[] args)
+    {
+        var psi = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "reg.exe"))
+        {
+            UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true,
+        };
+        psi.ArgumentList.Add(verb);
+        foreach (var a in args) psi.ArgumentList.Add(a);
+        using var p = Process.Start(psi) ?? throw new IOException($"reg {verb}: failed to start");
+        var stdout = p.StandardOutput.ReadToEndAsync();
+        var stderr = p.StandardError.ReadToEnd();
+        p.WaitForExit();
+        if (p.ExitCode != 0)
+            throw new IOException($"reg {verb}: {(string.IsNullOrWhiteSpace(stderr) ? stdout.Result : stderr).Trim()}");
     }
 
     // All-or-nothing: every edit is resolved and converted before the first SetValue.

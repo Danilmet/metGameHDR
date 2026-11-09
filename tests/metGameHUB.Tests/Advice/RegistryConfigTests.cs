@@ -129,4 +129,36 @@ public class RegistryConfigTests
         Assert.Equal("0.75", RegistryConfig.CurrentValue(k.Key, "Vol"));
         Assert.Null(RegistryConfig.CurrentValue(k.Key, "Nope"));
     }
+
+    [Fact] public void BackupFileName_LastTwoSegmentsAndHash()
+    {
+        var name = RegistryConfig.BackupFileName(@"HKEY_CURRENT_USER\Software\Co\Game\");
+        Assert.Matches(@"^Co_Game-[0-9a-f]{8}$", name);
+        Assert.Equal(name, RegistryConfig.BackupFileName(@"HKCU\Software\Co\Game"));
+    }
+
+    [Fact] public void BackupPath_CyrillicSegments_SafeName()
+    {
+        var name = RegistryConfig.BackupFileName(@"HKCU\Software\Студия\Игра: Два");
+        Assert.StartsWith("Студия_Игра_ Два-", name);
+        Assert.DoesNotContain(':', name);
+    }
+
+    [Fact] public void Backup_Then_Restore_RoundTrip()
+    {
+        using var k = new TestKey(); k.Dword("Width_h1", 1920);
+        var file = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".reg");
+        try
+        {
+            RegistryConfig.Backup(k.Key, file);
+            Assert.True(File.Exists(file));
+            k.Reg.SetValue("Width_h1", 2560, RegistryValueKind.DWord);
+            RegistryConfig.Restore(file);
+            Assert.Equal(1920, Registry.CurrentUser.OpenSubKey(RegistryConfig.SubKey(k.Key))!.GetValue("Width_h1"));
+        }
+        finally { File.Delete(file); }
+    }
+
+    [Fact] public void Restore_MissingFile_Throws() =>
+        Assert.Throws<IOException>(() => RegistryConfig.Restore(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".reg")));
 }
