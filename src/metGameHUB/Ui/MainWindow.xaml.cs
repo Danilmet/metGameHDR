@@ -53,6 +53,7 @@ public partial class MainWindow : Window
         DefaultPriorityBox.SelectedValue = settings.DefaultPriority;
         AutostartBox.IsChecked = Autostart.IsEnabled();
         TurnOffBox.IsChecked = settings.TurnOffHdrOnExit;
+        VersionText.Text = $"Версия {Updater.Current.ToString(3)}";
         var steam = SteamLocator.SteamPath();
         if (steam != null)
         {
@@ -557,6 +558,23 @@ public partial class MainWindow : Window
         installUpdate = install;
         UpdateText.Text = $"Доступна v{release.Version.ToString(3)}";
         UpdatePanel.Visibility = Visibility.Visible;
+    }
+
+    // Set by App: checks GitHub and, when a release is found, shows the update panel.
+    public Func<Task<Release?>>? CheckUpdates { get; set; }
+
+    async void CheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        if (CheckUpdates == null) return;
+        CheckUpdatesButton.IsEnabled = false;
+        CheckUpdatesText.Text = "Проверка…";
+        try { CheckUpdatesText.Text = await CheckUpdates() is null ? "Установлена последняя версия" : ""; }
+        catch (Exception ex)
+        {
+            Log.Write($"Update check: {ex.Message}");
+            CheckUpdatesText.Text = $"Ошибка: {ex.Message}";
+        }
+        finally { CheckUpdatesButton.IsEnabled = true; }
     }
 
     async void Update_Click(object sender, RoutedEventArgs e)

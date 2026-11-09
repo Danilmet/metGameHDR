@@ -117,21 +117,24 @@ public partial class App : Application
             }
             finally { Shutdown(); }
         }
+        async Task<Release?> CheckAsync()
+        {
+            var r = await Updater.CheckAsync();
+            if (r == null) return null;
+            if (notified != r.Version)
+            {
+                notified = r.Version;
+                tray.ShowInfo($"Доступна v{r.Version.ToString(3)}");
+            }
+            window.ShowUpdate(r, () => InstallAsync(r));
+            return r;
+        }
         async Task CheckUpdatesAsync()
         {
-            try
-            {
-                var r = await Updater.CheckAsync();
-                if (r == null) return;
-                if (notified != r.Version)
-                {
-                    notified = r.Version;
-                    tray.ShowInfo($"Доступна v{r.Version.ToString(3)}");
-                }
-                window.ShowUpdate(r, () => InstallAsync(r));
-            }
+            try { await CheckAsync(); }
             catch (Exception ex) { Log.Write($"Update check: {ex.Message}"); }
         }
+        window.CheckUpdates = CheckAsync;
         var updateTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
         updateTimer.Tick += (_, _) =>
         {
