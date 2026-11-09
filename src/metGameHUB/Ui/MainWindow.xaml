@@ -216,6 +216,9 @@
                             <StackPanel Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Name}" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                                 <TextBlock Text="{Binding Details, Mode=OneWay}" Foreground="{DynamicResource TextSecondary}" TextTrimming="CharacterEllipsis"/>
+                                <Button Style="{StaticResource LinkButton}" Content="{Binding HltbText, Mode=OneWay}" ToolTip="{Binding HltbTip, Mode=OneWay}"
+                                        Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Left" Click="Hltb_Click"
+                                        Visibility="{Binding HltbVisible, Converter={StaticResource BoolToVisibility}}"/>
                                 <Button x:Name="ParamsToggle" Content="Параметры ▸" HorizontalAlignment="Left" Margin="0,4,0,0"
                                         Style="{StaticResource LinkButton}" Click="ParamsToggle_Click"/>
                             </StackPanel>
@@ -236,7 +239,7 @@
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                 <TextBlock Text="Имя для поиска" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
-                                <TextBox Width="240" Text="{Binding SearchName, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBox Width="240" Text="{Binding SearchName, UpdateSourceTrigger=PropertyChanged}" LostFocus="SearchName_LostFocus"/>
                             </StackPanel>
                         </WrapPanel>
 

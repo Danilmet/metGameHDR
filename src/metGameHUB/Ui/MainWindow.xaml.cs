@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using MetGameHUB.Advice;
+using MetGameHUB.Hltb;
 using MetGameHUB.Scan;
 using MetGameHUB.Steam;
 using MetGameHUB.Update;
@@ -28,6 +29,7 @@ public partial class MainWindow : Window
     readonly Action onLibraryChanged;
     readonly ObservableCollection<GameRow> rows = [];
     readonly Covers covers = new(Http, AppPaths.CoversDir);
+    readonly HltbClient hltb = new(Http);
     bool scanning;
     bool addingToSteam;
     bool updating;
@@ -218,6 +220,28 @@ public partial class MainWindow : Window
         ShowGamePage(true);
         PageScroll.ScrollToTop();
         Dispatcher.BeginInvoke(() => GoalSlider.Focus(), System.Windows.Threading.DispatcherPriority.Input);
+        LoadHltb(row);
+    }
+
+    async void LoadHltb(GameRow row)
+    {
+        var name = lib.SearchNameOf(row.Game);
+        if (row.HltbLoading || HltbClient.IsFresh(row.Hltb, name, DateTime.Now)) return;
+        row.HltbLoading = true;
+        try { row.Hltb = await hltb.FetchAsync(name, DateTime.Now); }
+        catch (Exception ex) { Log.Write($"HLTB {name}: {ex.Message}"); }
+        finally { row.HltbLoading = false; }
+    }
+
+    void SearchName_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (GamePage.DataContext is GameRow row) LoadHltb(row);
+    }
+
+    void Hltb_Click(object sender, RoutedEventArgs e)
+    {
+        if (GamePage.DataContext is GameRow { Hltb.Id: int id })
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(HltbClient.GameUrl(id)) { UseShellExecute = true });
     }
 
     void CloseGamePage_Click(object sender, RoutedEventArgs e)

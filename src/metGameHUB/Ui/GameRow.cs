@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows.Media;
 using System.Windows.Threading;
 using MetGameHUB.Advice;
+using MetGameHUB.Hltb;
 using MetGameHUB.Scan;
 using MetGameHUB.Steam;
 
@@ -110,6 +111,39 @@ public sealed class GameRow : INotifyPropertyChanged
             lib.For(Game).SearchName = name;
             Save();
         }
+    }
+
+    bool hltbLoading;
+
+    public HltbInfo? Hltb
+    {
+        get => lib.For(Game).Hltb;
+        set
+        {
+            lib.For(Game).Hltb = value;
+            Save();
+            NotifyHltb();
+        }
+    }
+
+    public bool HltbLoading
+    {
+        get => hltbLoading;
+        set
+        {
+            hltbLoading = value;
+            NotifyHltb();
+        }
+    }
+
+    public string HltbText => HltbLoading ? "HLTB: …" : Hltb is { } h ? HltbClient.Format(h) : "";
+    public bool HltbVisible => HltbLoading || Hltb != null;
+    public string HltbTip => Hltb is { Id: not null } h ? $"{h.Name} на HowLongToBeat" : "Поменяйте «Имя для поиска» в параметрах";
+
+    void NotifyHltb()
+    {
+        foreach (var n in new[] { nameof(Hltb), nameof(HltbText), nameof(HltbVisible), nameof(HltbTip) })
+            PropertyChanged?.Invoke(this, new(n));
     }
 
     public SteamStatus? SteamStatus
