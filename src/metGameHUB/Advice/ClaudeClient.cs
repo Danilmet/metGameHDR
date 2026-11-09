@@ -8,7 +8,11 @@ namespace MetGameHUB.Advice;
 
 public sealed record LocateRequest(Game Game, IReadOnlyList<string> InstallRootEntries, IReadOnlyList<string> CandidatePaths, string? UnrealProject);
 
-public sealed record AdviceRequest(Game Game, HardwareInfo Hardware, GoalStep Goal, string? ConfigPath, string? ConfigFormat, string? ConfigText, bool Truncated);
+public sealed record AdviceRequest(Game Game, HardwareInfo Hardware, GoalStep Goal, string? ConfigPath, string? ConfigFormat, string? ConfigText, bool Truncated, List<CurrentSetting>? Current = null);
+
+public sealed record ReadRequest(Game Game, string ConfigPath, string ConfigFormat, string ConfigText, bool Truncated);
+
+public sealed record ReadResult(List<CurrentSetting> Settings);
 
 public sealed class AdviceException(string message) : Exception(message);
 
@@ -29,16 +33,27 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
         """;
 
     const string AskPrompt = """
-        Ты эксперт по оптимизации графических настроек ПК-игр. Тебе дают игру, железо пользователя, цель (режим и кадры в секунду) и, если найден, файл настроек игры с его содержимым.
+        Ты эксперт по оптимизации графических настроек ПК-игр. Тебе дают игру, железо пользователя, цель (режим и кадры в секунду) и, если найден, файл настроек игры с его содержимым и, если есть, уже разобранные текущие значения (current).
         Правила:
         1. Найди свежие материалы по оптимизации именно этой игры (статьи, тесты, форумы) и опирайся на них и на известное поведение движка.
         2. goal.mode задаёт, чем жертвовать: max_quality — максимум картинки, кадры как получатся, но не ниже goal.fps; quality — стабильно держать goal.fps, весь остальной запас отдать картинке; balanced — держать goal.fps в типичных сценах, жертвовать самым дорогим при малой разнице в картинке; smooth — держать goal.fps с запасом и по минимальным кадрам (1% low), картинка во вторую очередь; max_fps — как можно больше кадров и минимальная задержка, картинка вторична (goal.fps = null). Для quality, balanced и smooth цель по кадрам — для типичных сцен, с запасом ~10%.
-        3. settings — один список строк по пунктам графического меню игры. name и value-поля пиши так, как они видны в меню игры (на языке игры, если неизвестен — по-английски). Разрешение и апскейлер указывай под монитор пользователя.
+        3. settings — один список строк по пунктам графического меню игры. name и value-поля пиши так, как они видны в меню игры (на языке игры, если неизвестен — по-английски). Разрешение и апскейлер указывай под монитор пользователя. Если прислан current — это уже разобранные пункты файла: бери из него name и current для этих пунктов.
         4. Для каждого пункта: current — текущее значение, разобранное из присланного файла и переведённое в подпись меню (например ключ 3 → "High"); если файла нет или пункт в нём не хранится — null. recommended — рекомендуемая подпись меню.
         5. Если пункт хранится в присланном файле, заполни section (секция INI или null), key (точное имя ключа из файла; для INI допустим документированный для движка ключ, которого в файле нет) и value — сырое значение для записи в файл в том виде, в каком оно там пишется (число, true/false, строка без лишних кавычек). Иначе section/key/value — null. Ключи не выдумывай.
         6. summary, reason и notes — строго по-русски. summary — 2–3 предложения о том, что упирается в железо и чем пожертвовали. notes — предупреждения (например, что часть настроек надо выставить руками), иначе null.
         Отвечай только одним JSON-объектом по схеме, без пояснений и без markdown-ограждений:
         {"type":"object","additionalProperties":false,"required":["summary","settings","notes"],"properties":{"summary":{"type":"string"},"settings":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["name","current","recommended","section","key","value","reason"],"properties":{"name":{"type":"string"},"current":{"type":["string","null"]},"recommended":{"type":"string"},"section":{"type":["string","null"]},"key":{"type":["string","null"]},"value":{"type":["string","null"]},"reason":{"type":"string"}}}},"notes":{"type":["string","null"]}}}
+        """;
+
+    const string ReadPrompt = """
+        Ты знаешь графические настройки ПК-игр. Тебе дают игру и её файл настроек с содержимым.
+        Правила:
+        1. settings — пункты графического меню игры, которые хранятся в этом файле, в порядке, в каком они обычно идут в меню. name — подпись пункта так, как она видна в меню игры (на языке игры, если неизвестен — по-английски).
+        2. current — текущее значение, переведённое в подпись меню (например ключ 3 → "High"); если значение не удаётся понять — сырое значение из файла.
+        3. section — секция INI или null, key — точное имя ключа из файла. Ключи не выдумывай; пункты, которых нет в файле, не включай.
+        4. Служебные ключи (версии, идентификаторы, пути, статистику) не включай.
+        Отвечай только одним JSON-объектом по схеме, без пояснений и без markdown-ограждений:
+        {"type":"object","additionalProperties":false,"required":["settings"],"properties":{"settings":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["name","current","section","key"],"properties":{"name":{"type":"string"},"current":{"type":["string","null"]},"section":{"type":["string","null"]},"key":{"type":["string","null"]}}}}}}
         """;
 
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -52,6 +67,9 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
 
     public async Task<AdviceResult> AskAsync(AdviceRequest request, CancellationToken ct) =>
         Parse<AdviceResult>(await Post(BuildAskBody(request, ModelName()), ct));
+
+    public async Task<ReadResult> ReadAsync(ReadRequest request, CancellationToken ct) =>
+        Parse<ReadResult>(await Post(BuildReadBody(request, ModelName()), ct));
 
     string ModelName() => string.IsNullOrWhiteSpace(model) ? Model : model.Trim();
 
@@ -80,7 +98,7 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
 
     static object GameInfo(Game g) => new { name = g.Name, source = g.Source, installDir = g.InstallDir, exe = g.MainExe };
 
-    internal static string BuildLocateBody(LocateRequest r, string model) => Body(model, 1000, 2, LocatePrompt, new
+    internal static string BuildLocateBody(LocateRequest r, string model) => Body(model, 1000, 2, "medium", LocatePrompt, new
     {
         game = GameInfo(r.Game),
         installRootEntries = r.InstallRootEntries,
@@ -88,24 +106,35 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
         unrealProject = r.UnrealProject,
     });
 
-    internal static string BuildAskBody(AdviceRequest r, string model) => Body(model, 8000, 3, AskPrompt, new
+    internal static string BuildAskBody(AdviceRequest r, string model) => Body(model, 8000, 3, "medium", AskPrompt, new
     {
         game = GameInfo(r.Game),
         hardware = r.Hardware,
         goal = new { mode = GoalTargets.Mode(r.Goal), fps = GoalTargets.For(r.Goal, r.Hardware.Hz).Fps },
         config = r.ConfigPath is null ? null : new { path = r.ConfigPath, format = r.ConfigFormat, text = r.ConfigText, truncated = r.Truncated },
+        current = r.Current,
     });
 
-    static string Body(string model, int maxTokens, int maxSearches, string system, object user) => JsonSerializer.Serialize(new
+    internal static string BuildReadBody(ReadRequest r, string model) => Body(model, 4000, 0, "low", ReadPrompt, new
     {
-        model,
-        max_tokens = maxTokens,
-        output_config = new { effort = "medium" },
-        system,
-        tools = new[] { new { type = "web_search_20260209", name = "web_search", max_uses = maxSearches } },
-        fallbacks = "default",
-        messages = new[] { new { role = "user", content = JsonSerializer.Serialize(user, Json) } },
-    }, Json);
+        game = GameInfo(r.Game),
+        config = new { path = r.ConfigPath, format = r.ConfigFormat, text = r.ConfigText, truncated = r.Truncated },
+    });
+
+    static string Body(string model, int maxTokens, int maxSearches, string effort, string system, object user)
+    {
+        var body = new Dictionary<string, object>
+        {
+            ["model"] = model,
+            ["max_tokens"] = maxTokens,
+            ["output_config"] = new { effort },
+            ["system"] = system,
+        };
+        if (maxSearches > 0) body["tools"] = new[] { new { type = "web_search_20260209", name = "web_search", max_uses = maxSearches } };
+        body["fallbacks"] = "default";
+        body["messages"] = new[] { new { role = "user", content = JsonSerializer.Serialize(user, Json) } };
+        return JsonSerializer.Serialize(body, Json);
+    }
 
     internal static T Parse<T>(string responseJson)
     {

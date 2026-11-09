@@ -254,6 +254,37 @@ public class ClaudeClientTests
         Assert.Contains("неразборчивый", ex.Message);
     }
 
+    static ReadRequest ReadReq() => new(new Game("G", @"C:\g", GameSource.Steam, "g.exe"), @"C:\g\a.ini", "ini", "k=1", false);
+
+    [Fact]
+    public void BuildReadBody_NoToolsLowEffortWithConfig()
+    {
+        var body = ClaudeClient.BuildReadBody(ReadReq(), "m");
+        var root = JsonDocument.Parse(body).RootElement;
+        Assert.False(root.TryGetProperty("tools", out _));
+        Assert.Equal("low", root.GetProperty("output_config").GetProperty("effort").GetString());
+        Assert.Equal(4000, root.GetProperty("max_tokens").GetInt32());
+        Assert.Equal("k=1", UserJson(body).GetProperty("config").GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public async Task ReadAsync_ParsesSettings()
+    {
+        var fake = new Fake(HttpStatusCode.OK, Response(text: """{"settings":[{"name":"Shadows","current":"High","section":"S","key":"k"}]}"""));
+        var result = await new ClaudeClient(new HttpClient(fake), "key").ReadAsync(ReadReq(), CancellationToken.None);
+
+        Assert.Equal(new CurrentSetting("Shadows", "High", "S", "k"), result.Settings.Single());
+    }
+
+    [Fact]
+    public void BuildAskBody_CurrentPassedOrNull()
+    {
+        var with = UserJson(ClaudeClient.BuildAskBody(Request() with { Current = [new("Shadows", "High", "S", "k")] }, "m"));
+        Assert.Equal("Shadows", with.GetProperty("current")[0].GetProperty("name").GetString());
+        var none = UserJson(ClaudeClient.BuildAskBody(Request(), "m"));
+        Assert.Equal(JsonValueKind.Null, none.GetProperty("current").ValueKind);
+    }
+
     [Fact]
     public async Task AskAsync_429_ThrowsOverloaded()
     {
