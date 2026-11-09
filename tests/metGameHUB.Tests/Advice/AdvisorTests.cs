@@ -222,6 +222,17 @@ public class AdvisorTests
     }
 
     [Fact]
+    public void Apply_SnapshotKeyDifferentCase_UpdatesCurrent()
+    {
+        using var e = new Env();
+        e.Lib.For(e.Game).Snapshot = new([new CurrentSetting("A", "1", "s", "a")], DateTime.UtcNow, File.GetLastWriteTimeUtc(e.Ini));
+
+        e.Advisor().Apply(e.Game, e.AdviceFor());
+
+        Assert.Equal("Rec", e.Lib.For(e.Game).Snapshot!.Settings[0].Current);
+    }
+
+    [Fact]
     public async Task AskAsync_StoresAdviceOnOverrideAndSaves()
     {
         using var e = new Env();

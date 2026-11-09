@@ -158,10 +158,12 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
         o.Advice = advice with { Result = advice.Result with { Settings = settings } };
         if (o.Snapshot is { } snap)
         {
-            var rec = advice.Result.Settings.Where(x => x.Key != null).GroupBy(x => (x.Section, x.Key!)).ToDictionary(g => g.Key, g => g.Last().Recommended);
+            // IniEditor matches section and key case-insensitively, so the rows must too.
             o.Snapshot = snap with
             {
-                Settings = snap.Settings.Select(x => x.Key != null && rec.TryGetValue((x.Section, x.Key), out var r) ? x with { Current = r } : x).ToList(),
+                Settings = snap.Settings.Select(x => x.Key != null && advice.Result.Settings.LastOrDefault(a => a.Key != null
+                    && string.Equals(a.Section, x.Section, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(a.Key, x.Key, StringComparison.OrdinalIgnoreCase)) is { } a ? x with { Current = a.Recommended } : x).ToList(),
                 FileStamp = File.GetLastWriteTimeUtc(path),
             };
         }
