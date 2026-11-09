@@ -433,13 +433,13 @@ public partial class MainWindow : Window
                 try
                 {
                     await advisor.ReadAsync(row.Game, cts.Token);
+                    RefreshRows(row);
                 }
                 catch (Exception ex) when (!cts.IsCancellationRequested)
                 {
                     Log.Write($"Read config: {ex}");
                     readError = $"Не удалось разобрать конфиг: {ex.Message}";
                 }
-                RefreshRows(row);
                 if (mode != AdviceMode.Ask) SetStatus(row, "", readError ?? "");
             }
             if (mode != AdviceMode.Ask) return;

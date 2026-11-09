@@ -68,8 +68,11 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
     public async Task<AdviceResult> AskAsync(AdviceRequest request, CancellationToken ct) =>
         Parse<AdviceResult>(await Post(BuildAskBody(request, ModelName()), ct));
 
-    public async Task<ReadResult> ReadAsync(ReadRequest request, CancellationToken ct) =>
-        Parse<ReadResult>(await Post(BuildReadBody(request, ModelName()), ct));
+    public async Task<ReadResult> ReadAsync(ReadRequest request, CancellationToken ct)
+    {
+        var result = Parse<ReadResult>(await Post(BuildReadBody(request, ModelName()), ct));
+        return result.Settings == null ? new ReadResult([]) : result;
+    }
 
     string ModelName() => string.IsNullOrWhiteSpace(model) ? Model : model.Trim();
 

@@ -322,7 +322,7 @@ public sealed class GameRow : INotifyPropertyChanged
         var snapshot = lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.Snapshot : null;
         var current = latest != null
             ? Advisor.IsSnapshotFresh(lib, roots, Game) ? snapshot!.Settings : null
-            : snapshot?.Settings ?? provisional;
+            : (Advisor.LocatedPath(lib, roots, Game) is { } p && File.Exists(p) ? snapshot?.Settings : null) ?? provisional;
         return AdviceTable.Build(latest, current);
     }
 

@@ -277,6 +277,15 @@ public class ClaudeClientTests
     }
 
     [Fact]
+    public async Task ReadAsync_NullSettings_EmptyList()
+    {
+        var fake = new Fake(HttpStatusCode.OK, Response(text: """{"settings":null}"""));
+        var result = await new ClaudeClient(new HttpClient(fake), "key").ReadAsync(ReadReq(), CancellationToken.None);
+
+        Assert.Empty(result.Settings);
+    }
+
+    [Fact]
     public void BuildAskBody_CurrentPassedOrNull()
     {
         var with = UserJson(ClaudeClient.BuildAskBody(Request() with { Current = [new("Shadows", "High", "S", "k")] }, "m"));

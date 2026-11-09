@@ -15,9 +15,11 @@ public class AdvisorTests
     sealed class Fake(string json) : HttpMessageHandler
     {
         public string Body = "";
+        public Action? OnSend;
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
+            OnSend?.Invoke();
             Body = await request.Content!.ReadAsStringAsync(ct);
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) };
         }
@@ -210,6 +212,7 @@ public class AdvisorTests
         using var e = new Env();
         var advice = e.AdviceFor();
         e.Lib.For(e.Game).Advice = advice;
+        File.SetLastWriteTimeUtc(e.Ini, DateTime.UtcNow.AddHours(-1));
         e.Lib.For(e.Game).Snapshot = Snap(e);
 
         e.Advisor().Apply(e.Game, advice);
@@ -219,6 +222,83 @@ public class AdvisorTests
         e.Advisor().Restore(e.Game);
         Assert.Equal("1", e.Lib.For(e.Game).Snapshot!.Settings[0].Current);
         Assert.True(Advisor.IsSnapshotFresh(e.Lib, e.Roots, e.Game));
+    }
+
+    [Fact]
+    public void Restore_KeyAddedByApply_CurrentBecomesNull()
+    {
+        using var e = new Env();
+        var advice = new Advice.Advice(new AdviceResult("s", [new SettingAdvice("B", null, "Rec", "S", "B", "2", "r")], null), DateTime.UtcNow);
+        e.Lib.For(e.Game).Advice = advice;
+        e.Lib.For(e.Game).Snapshot = new([new CurrentSetting("B", "old", "S", "B")], DateTime.UtcNow, File.GetLastWriteTimeUtc(e.Ini));
+
+        e.Advisor().Apply(e.Game, advice);
+        e.Advisor().Restore(e.Game);
+
+        Assert.Null(e.Lib.For(e.Game).Snapshot!.Settings[0].Current);
+    }
+
+    [Fact]
+    public async Task ReadAsync_FileChangedDuringRequest_Stale()
+    {
+        using var e = new Env();
+        var advisor = e.Advisor(Reply(ReadJson));
+        e.Handler!.OnSend = () => File.SetLastWriteTimeUtc(e.Ini, DateTime.UtcNow.AddHours(1));
+
+        await advisor.ReadAsync(e.Game, CancellationToken.None);
+
+        Assert.False(Advisor.IsSnapshotFresh(e.Lib, e.Roots, e.Game));
+    }
+
+    [Fact]
+    public void Apply_StaleSnapshot_StaysStale()
+    {
+        using var e = new Env();
+        e.Lib.For(e.Game).Snapshot = Snap(e) with { FileStamp = DateTime.UtcNow.AddDays(-2) };
+
+        e.Advisor().Apply(e.Game, e.AdviceFor());
+
+        Assert.Equal("Rec", e.Lib.For(e.Game).Snapshot!.Settings[0].Current);
+        Assert.False(Advisor.IsSnapshotFresh(e.Lib, e.Roots, e.Game));
+    }
+
+    [Fact]
+    public async Task AskAsync_NoKeyedRows_KeepsSnapshot()
+    {
+        using var e = new Env();
+        var before = Snap(e, "keep");
+        e.Lib.For(e.Game).Snapshot = before;
+
+        await e.Advisor(Reply("""{"summary":"s","settings":[{"name":"M","current":null,"recommended":"R","section":null,"key":null,"value":null,"reason":"r"}],"notes":null}"""))
+            .AskAsync(e.Game, GoalStep.Balanced, CancellationToken.None);
+
+        Assert.Same(before, e.Lib.For(e.Game).Snapshot);
+    }
+
+    [Fact]
+    public async Task AskAsync_FreshSnapshot_MergesRows()
+    {
+        using var e = new Env();
+        e.Lib.For(e.Game).Snapshot = new([new CurrentSetting("A", "0", "S", "A"), new CurrentSetting("Other", "x", "S", "Other")], DateTime.UtcNow, File.GetLastWriteTimeUtc(e.Ini));
+
+        await e.Advisor(Reply(AskJson)).AskAsync(e.Game, GoalStep.Balanced, CancellationToken.None);
+
+        var rows = e.Lib.For(e.Game).Snapshot!.Settings;
+        Assert.Equal("1", rows.Single(r => r.Key == "A").Current);
+        Assert.Contains(rows, r => r.Key == "Other" && r.Current == "x");
+        Assert.True(Advisor.IsSnapshotFresh(e.Lib, e.Roots, e.Game));
+    }
+
+    [Fact]
+    public async Task AskAsync_CurrentExcludesSecretKeys()
+    {
+        using var e = new Env();
+        e.Lib.For(e.Game).Snapshot = new([new CurrentSetting("A", "1", "S", "A"), new CurrentSetting("Pw", "hunter2", "S", "UserPassword")], DateTime.UtcNow, File.GetLastWriteTimeUtc(e.Ini));
+
+        await e.Advisor(Reply(EmptyAdvice)).AskAsync(e.Game, GoalStep.Balanced, CancellationToken.None);
+
+        Assert.Single(SentCurrent(e.Handler!.Body).EnumerateArray());
+        Assert.DoesNotContain("hunter2", e.Handler.Body);
     }
 
     [Fact]

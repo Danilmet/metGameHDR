@@ -51,17 +51,27 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
         var hw = hardware();
         var effective = EffectiveGame(lib, game);
         var path = LocatedPath(lib, roots, game);
-        var current = IsSnapshotFresh(lib, roots, game) ? lib.For(game).Snapshot!.Settings : null;
+        var fresh = IsSnapshotFresh(lib, roots, game);
+        var stamp = path == null ? default : File.GetLastWriteTimeUtc(path); // before the request: a file rewritten meanwhile stays stale
+        var current = fresh ? lib.For(game).Snapshot!.Settings.Where(r => r.Key == null || !ConfigFinder.IsSecretKey(r.Key)).ToList() : null;
         var request = ReadConfig(path) is { } c
             ? new AdviceRequest(effective, hw, goal, c.Path, c.Format, c.Text, c.Truncated, current)
             : new AdviceRequest(effective, hw, goal, null, null, null, false);
         var advice = new Advice(await client.AskAsync(request, ct), DateTime.UtcNow);
         var o = lib.For(game);
         o.Advice = advice;
-        if (path != null && TryFileText(path) is { } text)
+        var keyed = advice.Result.Settings.Where(s => s.Key != null).ToList();
+        if (path != null && keyed.Count > 0 && TryFileText(path) is { } text)
         {
-            var rows = advice.Result.Settings.Where(s => s.Key != null).Select(s => new CurrentSetting(s.Name, s.Current, s.Section, s.Key)).ToList();
-            o.Snapshot = new ConfigSnapshot(UnrealScalability.Merge(rows, text), DateTime.UtcNow, File.GetLastWriteTimeUtc(path));
+            var rows = fresh ? o.Snapshot!.Settings.ToList() : [];
+            foreach (var s in keyed)
+            {
+                var i = rows.FindIndex(r => string.Equals(r.Section, s.Section, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(r.Key, s.Key, StringComparison.OrdinalIgnoreCase));
+                if (i >= 0) rows[i] = rows[i] with { Current = s.Current };
+                else rows.Add(new CurrentSetting(s.Name, s.Current, s.Section, s.Key));
+            }
+            o.Snapshot = new ConfigSnapshot(UnrealScalability.Merge(rows, text), DateTime.UtcNow, stamp);
         }
         lib.Save(libraryPath);
         return advice;
@@ -72,9 +82,10 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
     {
         var client = Client();
         var path = LocatedPath(lib, roots, game);
+        var stamp = path == null ? default : File.GetLastWriteTimeUtc(path);
         if (ReadConfig(path) is not { } c || TryFileText(path!) is not { } text) return null;
         var result = await client.ReadAsync(new ReadRequest(EffectiveGame(lib, game), c.Path, c.Format, c.Text, c.Truncated), ct);
-        var snapshot = new ConfigSnapshot(UnrealScalability.Merge(result.Settings, text), DateTime.UtcNow, File.GetLastWriteTimeUtc(path!));
+        var snapshot = new ConfigSnapshot(UnrealScalability.Merge(result.Settings, text), DateTime.UtcNow, stamp);
         lib.For(game).Snapshot = snapshot;
         lib.Save(libraryPath);
         return snapshot;
@@ -138,6 +149,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
         if (!EditsValid(edits)) return ApplyOutcome.BadEdit;
         if (isRunning(game)) return ApplyOutcome.GameRunning;
 
+        var freshBefore = IsSnapshotFresh(lib, roots, game);
         var original = File.ReadAllBytes(path);
         if (!CanWrite(File.ReadAllText(path), edits)) return ApplyOutcome.NotIni;
         if (IniEditor.ApplyBytes(original, edits) is not { } updated)
@@ -164,7 +176,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
                 Settings = snap.Settings.Select(x => x.Key != null && advice.Result.Settings.LastOrDefault(a => a.Key != null
                     && string.Equals(a.Section, x.Section, StringComparison.OrdinalIgnoreCase)
                     && string.Equals(a.Key, x.Key, StringComparison.OrdinalIgnoreCase)) is { } a ? x with { Current = a.Recommended } : x).ToList(),
-                FileStamp = File.GetLastWriteTimeUtc(path),
+                FileStamp = freshBefore ? File.GetLastWriteTimeUtc(path) : snap.FileStamp,
             };
         }
         lib.Save(libraryPath);
@@ -178,6 +190,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
         if (path == null || !File.Exists(path + ".orig")) return ApplyOutcome.FileMissing;
         if (isRunning(game)) return ApplyOutcome.GameRunning;
 
+        var freshBefore = IsSnapshotFresh(lib, roots, game);
         if (File.Exists(path)) File.Copy(path, path + ".bak", overwrite: true);
         var tmp = path + ".tmp";
         File.Copy(path + ".orig", tmp, overwrite: true);
@@ -185,21 +198,21 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
         catch { File.Delete(tmp); throw; }
 
         // Stored "current" values described the applied file; re-read them (raw) from the restored one.
-        if (lib.Overrides.TryGetValue(game.InstallDir, out var o) && o.Advice is { } advice)
+        var text = File.ReadAllText(path);
+        if (lib.Overrides.TryGetValue(game.InstallDir, out var o))
         {
-            var text = File.ReadAllText(path);
-            var settings = advice.Result.Settings.Select(x => x.Key != null ? x with { Current = IniEditor.CurrentValue(text, x.Section, x.Key) } : x).ToList();
-            o.Advice = advice with { Result = advice.Result with { Settings = settings } };
-        }
-        if (lib.Overrides.TryGetValue(game.InstallDir, out var po) && po.Snapshot is { } snap)
-        {
-            var text = File.ReadAllText(path);
-            po.Snapshot = snap with
+            if (o.Advice is { } advice)
             {
-                Settings = snap.Settings.Select(x => x.Key != null && IniEditor.CurrentValue(text, x.Section, x.Key) is { } raw
-                    ? x with { Current = UnrealScalability.Describe(x.Section, x.Key, raw)?.Current ?? raw } : x).ToList(),
-                FileStamp = File.GetLastWriteTimeUtc(path),
-            };
+                var settings = advice.Result.Settings.Select(x => x.Key != null ? x with { Current = IniEditor.CurrentValue(text, x.Section, x.Key) } : x).ToList();
+                o.Advice = advice with { Result = advice.Result with { Settings = settings } };
+            }
+            if (o.Snapshot is { } snap)
+                o.Snapshot = snap with
+                {
+                    Settings = snap.Settings.Select(x => x.Key == null ? x
+                        : x with { Current = IniEditor.CurrentValue(text, x.Section, x.Key) is { } raw ? UnrealScalability.Describe(x.Section, x.Key, raw)?.Current ?? raw : null }).ToList(),
+                    FileStamp = freshBefore ? File.GetLastWriteTimeUtc(path) : snap.FileStamp,
+                };
         }
         lib.Save(libraryPath);
         return ApplyOutcome.Applied;

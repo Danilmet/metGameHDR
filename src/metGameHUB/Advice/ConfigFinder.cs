@@ -62,6 +62,8 @@ public static class ConfigFinder
 
     internal static string MaskSecrets(string text) => string.Join('\n', text.Split('\n').Select(MaskLine));
 
+    internal static bool IsSecretKey(string key) => SecretKeys.Any(s => key.Contains(s, StringComparison.OrdinalIgnoreCase));
+
     private static string MaskLine(string line)
     {
         var body = line.TrimEnd('\r');
@@ -70,7 +72,7 @@ public static class ConfigFinder
         var sep = body.IndexOfAny(['=', ' ', '\t'], start);
         if (sep < 0) return line;
         var key = body[start..sep];
-        if (!SecretKeys.Any(s => key.Contains(s, StringComparison.OrdinalIgnoreCase))) return line;
+        if (!IsSecretKey(key)) return line;
 
         var i = sep;
         while (i < body.Length && char.IsWhiteSpace(body[i])) i++;
