@@ -22,15 +22,17 @@
 
 | Тип в реестре | В выгрузке | Классификация для записи |
 |---|---|---|
-| REG_DWORD, значение ≤ 1 000 000 или как float не конечное | целое десятичное | `int` |
-| REG_DWORD, значение > 1 000 000 и как float конечное | float инвариантно (`0.75`) | `float` |
+| REG_DWORD, 4 байта | целое десятичное со знаком | `int` |
+| REG_DWORD, 8 байт (`GetValue` отдаёт `long`), как double конечное | double инвариантно, `"R"` (`0.75`) | `double` |
 | REG_BINARY, валидный UTF-8 (без завершающего нуля) | строка | `binaryString` |
 | REG_SZ | строка | `sz` |
-| прочее (QWORD, MULTI_SZ, нечитаемый бинарник) | не попадает | не пишется |
+| прочее (QWORD, MULTI_SZ, нечитаемый бинарник, нечисловой double) | не попадает | не пишется |
 
-Unity хранит float в DWORD битами IEEE 754; любое нормальное float имеет биты ≥ 8 388 608, а целые настройки (разрешение, индекс качества, режим окна) много меньше миллиона, поэтому порог в миллион разделяет их надёжно.
+Unity хранит float-настройки как REG_DWORD с 8 байтами данных — double IEEE 754 (проверено на реальных PlayerPrefs); 4-байтный DWORD всегда целое.
 
-Дальше выгрузка идёт тем же путём, что текст файла: `ConfigFinder.MaskSecrets`, лимит 32 К символов с флагом `truncated`, `config.format = "registry"`, `config.path` — ключ. `UnrealScalability.Merge` на выгрузке ничего не находит и ничего не меняет.
+Значение, чей текст длиннее 256 символов или содержит перевод строки (бинарные блобы, base64, многострочные строки), в выгрузку не попадает: оно ломает формат `имя=значение` и съедает бюджет 32 К. Секреты маскируются по полному имени значения (`ConfigFinder.IsSecretKey`, имя может содержать пробелы): `имя=***`.
+
+Дальше выгрузка идёт тем же путём, что текст файла: `ConfigFinder.MaskSecrets` (для выгрузки уже ничего не меняет), лимит 32 К символов с флагом `truncated`, `config.format = "registry"`, `config.path` — ключ. `UnrealScalability.Merge` на выгрузке ничего не находит и ничего не меняет.
 
 ## Промпты
 
@@ -42,8 +44,8 @@ Unity хранит float в DWORD битами IEEE 754; любое нормал
 `RegistryConfig.Apply(string key, IReadOnlyList<ConfigEdit> edits)` → `bool`:
 
 1. Для каждой правки имя ищется среди существующих значений: точно (без учёта регистра), иначе по единственному значению, чьё имя до суффикса `_h<цифры>` совпадает с ключом правки. Не найдено или найдено несколько → `false`.
-2. Тип берётся у существующего значения по классификации из таблицы: `int` → `int.Parse` инвариантно → REG_DWORD; `float` → `float.Parse` инвариантно → REG_DWORD с битами float; `binaryString` → UTF-8 + `\0` → REG_BINARY; `sz` → REG_SZ. Значение не парсится или тип не пишется → `false`.
-3. Сначала проверяются все правки, затем пишутся все. `false` в `Advisor.Apply` даёт `ApplyOutcome.BadEdit`, как у INI.
+2. Тип берётся у существующего значения по классификации из таблицы: `int` → `int.Parse` инвариантно → REG_DWORD; `double` → `double.Parse` инвариантно, только конечное → REG_DWORD с 8 байтами double (`RegSetValueExW`: `RegistryKey.SetValue` такой DWORD не пишет); `binaryString` → UTF-8 + `\0` → REG_BINARY; `sz` → REG_SZ. Значение не парсится или тип не пишется → `false`.
+3. Сначала проверяются все правки (`Prepare` → список записей или null), затем пишутся все (`Write`); `Apply` = `Prepare` + `Write`. `false` в `Advisor.Apply` даёт `ApplyOutcome.BadEdit`, как у INI.
 
 `RegistryConfig.CurrentValue(string key, string name)` → строка по той же классификации или null; используется после отката, чтобы перечитать `Current`.
 
@@ -68,9 +70,9 @@ Unity хранит float в DWORD битами IEEE 754; любое нормал
 
 - `bool IsRegistry(string path)` — префикс `HKCU\` или `HKEY_CURRENT_USER\` без учёта регистра.
 - `bool Exists(string path)`, `DateTime Stamp(string path)`.
-- `string? ReadText(string path)` — файл: `File.ReadAllText` с ловлей IO-ошибок (нынешний `TryFileText`); ключ: `Dump`.
+- `string? ReadText(string path)` — файл: `File.ReadAllText` с ловлей IO-ошибок (нынешний `TryFileText`); ключ: `Dump`, если ключ существует, иначе null.
 - `bool CanWrite(string path, string text, IReadOnlyList<ConfigEdit> edits)` — файл: нынешний `Advisor.CanWrite`; ключ: всегда true.
-- `bool Apply(string path, IReadOnlyList<ConfigEdit> edits)` — файл: `IniEditor.ApplyBytes` + `.orig`/`.bak`/`.tmp` + `File.Move` (нынешний код `Advisor.Apply`); ключ: `Backup` в `.orig.reg` (если нет) и `.bak.reg`, затем `RegistryConfig.Apply`. `false` = `BadEdit`.
+- `bool Apply(string path, IReadOnlyList<ConfigEdit> edits)` — файл: `IniEditor.ApplyBytes` + `.orig`/`.bak`/`.tmp` + `File.Move` (нынешний код `Advisor.Apply`); ключ: `RegistryConfig.Prepare` (null → `false` без копий), затем `Backup` в `.orig.reg` (если нет) и `.bak.reg`, затем `RegistryConfig.Write`. `false` = `BadEdit`.
 - `bool HasBackup(string path)`, `bool WasApplied(string path)`, `void Restore(string path)` — файл: нынешний код `Advisor.Restore` (`.orig` → `.tmp` → `File.Move`, текущий в `.bak`); ключ: `.bak.reg` + `reg import`.
 - `string? CurrentValue(string path, string text, string? section, string key)` — файл: `IniEditor.CurrentValue(text, …)`; ключ: `RegistryConfig.CurrentValue`.
 
@@ -98,7 +100,7 @@ Unity хранит float в DWORD битами IEEE 754; любое нормал
 
 ## Тесты
 
-- `RegistryConfigTests` — реальный ключ `HKCU\Software\metGameHUB.Tests\<guid>`, создаётся в тесте и удаляется в `Dispose`: выгрузка int / float / строка REG_BINARY / REG_SZ / суффикс `_h`, пропуск QWORD и нечитаемого бинарника, сортировка; `Apply` сохраняет тип (int, float по битам, строка с нулём), ищет имя по префиксу, отказывает на неизвестное имя, на два кандидата по префиксу и на непарсящееся значение, ничего не пишет при отказе; `CurrentValue`; `IsAllowedKey` (допуск, `HKEY_CURRENT_USER`, `Microsoft`, один сегмент, HKLM); `Backup` → правка → `Restore` возвращает значения (через `reg.exe`).
+- `RegistryConfigTests` — реальный ключ `HKCU\Software\metGameHUB.Tests\<guid>`, создаётся в тесте и удаляется в `Dispose`: выгрузка int / double / строка REG_BINARY / REG_SZ / суффикс `_h`, пропуск QWORD и нечитаемого бинарника, сортировка; `Apply` сохраняет тип (int, double в 8-байтном DWORD, строка с нулём), ищет имя по префиксу, отказывает на неизвестное имя, на два кандидата по префиксу и на непарсящееся значение, ничего не пишет при отказе; `CurrentValue`; `IsAllowedKey` (допуск, `HKEY_CURRENT_USER`, `Microsoft`, один сегмент, HKLM); `Backup` → правка → `Restore` возвращает значения (через `reg.exe`).
 - `ConfigFinderTests` — `UnityPlayerPrefsKey` по временной папке с `X_Data\app.info`; без файла — null.
 - `ClaudeClientTests` — тело поиска содержит `unityPlayerPrefs`; разбор ответа с `format: "registry"`.
 - `AdvisorTests` — `LocateAsync` с ответом `registry` и допустимым ключом сохраняет его; с `HKCU\Software\Microsoft\…` — path null и заметка о недопустимом пути; существующие тесты файлового пути проходят без изменений.
