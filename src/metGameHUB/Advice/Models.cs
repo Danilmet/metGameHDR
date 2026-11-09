@@ -14,3 +14,5 @@ public sealed record AdviceResult(string Summary, List<SettingAdvice> Settings, 
 public sealed record ConfigLocation(string? Path, string Format, string? Note);
 public sealed record ConfigStatus(string? Path, bool Exists, string Format, string? Note);
 public sealed record Advice(AdviceResult Result, DateTime At);
+public enum ChatRole { User, Assistant }
+public sealed record ChatTurn(ChatRole Role, string Text, List<string>? Attachments, DateTime At);
