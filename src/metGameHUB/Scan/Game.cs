@@ -13,6 +13,8 @@ public interface IGameSource
 public sealed class GameOverride
 {
     public bool HdrEnabled { get; set; } = true;
+    // Hidden games are left out of the grid (unless "show hidden") and never switch HDR.
+    public bool Hidden { get; set; }
     public string? MainExe { get; set; }
     public string? SearchName { get; set; }
     public Advice.GraphicsGoal? Goal { get; set; }

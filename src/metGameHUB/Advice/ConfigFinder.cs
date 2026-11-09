@@ -18,7 +18,7 @@ public static class ConfigFinder
 {
     public const int MaxFiles = 3, MaxTotalBytes = 32 * 1024, MaxRootFileBytes = 16 * 1024, MaxFileBytes = 1024 * 1024;
 
-    private static readonly string[] Keywords = ["settings", "config", "video", "graphics", "user"];
+    private static readonly string[] Keywords = ["settings", "config", "video", "graphics", "user", "prefs"];
     private static readonly string[] SecretKeys = ["password", "passwd", "pwd", "token", "secret", "session", "auth", "ticket", "credential"];
     private static readonly HashSet<string> NoiseFolders = new(
         ["Microsoft", "Packages", "Temp", "Programs", "Google", "Mozilla", "NVIDIA", "AMD", "Steam", "Discord", "CrashDumps", "D3DSCache", "Comms"],
@@ -148,13 +148,6 @@ public static class ConfigFinder
             }
         }
 
-        if (installed)
-        {
-            foreach (var pattern in new[] { "*.ini", "*.cfg" })
-                foreach (var f in SafeFiles(game.InstallDir, pattern))
-                    if (WithinSize(f, MaxRootFileBytes)) yield return f;
-        }
-
         foreach (var root in new[] { Path.Combine(roots.Documents, "My Games"), roots.SavedGames })
             foreach (var dir in MatchingDirs(root, game))
                 foreach (var pattern in new[] { "*.ini", "*.cfg", "*.txt" })
@@ -163,6 +156,13 @@ public static class ConfigFinder
                         var name = Path.GetFileName(f).ToLowerInvariant();
                         if (Keywords.Any(name.Contains)) yield return f;
                     }
+
+        if (installed)
+        {
+            foreach (var pattern in new[] { "*.ini", "*.cfg" })
+                foreach (var f in SafeFiles(game.InstallDir, pattern))
+                    if (WithinSize(f, MaxRootFileBytes)) yield return f;
+        }
     }
 
     private static IEnumerable<string> MatchingDirs(string root, Game game) =>
@@ -171,7 +171,9 @@ public static class ConfigFinder
     private static IEnumerable<string> SafeDirs(string dir) => Safe(() => Directory.GetDirectories(dir));
 
     private static IEnumerable<string> SafeFiles(string dir, string pattern) =>
-        Safe(() => Directory.GetFiles(dir, pattern)).OrderBy(f => f, StringComparer.OrdinalIgnoreCase);
+        Safe(() => Directory.GetFiles(dir, pattern))
+            .OrderBy(f => !Path.GetFileName(f).Contains("prefs", StringComparison.OrdinalIgnoreCase))
+            .ThenBy(f => f, StringComparer.OrdinalIgnoreCase);
 
     private static string[] Safe(Func<string[]> list)
     {

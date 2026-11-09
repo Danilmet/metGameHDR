@@ -29,6 +29,14 @@ public class LibraryTests
         Assert.Null(lib.FindByPath(@"C:\D\d.exe")); Assert.Null(lib.FindByPath(@"C:\Off\o.exe"));
     }
 
+    [Fact] public void FindByPath_SkipsHidden()
+    {
+        var g = new Game("G", @"C:\G", GameSource.Folder, null);
+        var lib = new Library { Games = [g] };
+        lib.For(g).Hidden = true;
+        Assert.Null(lib.FindByPath(@"C:\G\g.exe"));
+    }
+
     [Fact] public void SaveLoad_KeepsOverrides()
     {
         var path = Path.GetTempFileName();

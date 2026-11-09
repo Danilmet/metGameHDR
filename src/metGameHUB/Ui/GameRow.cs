@@ -25,7 +25,7 @@ public sealed class GameRow : INotifyPropertyChanged
     bool isAsking;
     string askStage = "";
     string configText = "", configDetail = "";
-    bool hasConfigPath, configMissing;
+    bool hasConfigPath, configMissing, canRestore;
     string adviceStatus = "";
     string applyStatus = "";
     IReadOnlyList<AdviceRowVm> adviceRows = [];
@@ -67,6 +67,23 @@ public sealed class GameRow : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new(nameof(HdrEnabled)));
         }
     }
+
+    public bool Hidden
+    {
+        get => lib.Overrides.TryGetValue(Game.InstallDir, out var o) && o.Hidden;
+        set
+        {
+            if (value == Hidden) return;
+            lib.For(Game).Hidden = value;
+            Save();
+            onHdrChanged();
+            PropertyChanged?.Invoke(this, new(nameof(Hidden)));
+            HiddenChanged?.Invoke();
+        }
+    }
+
+    // Lets the window re-filter the grid.
+    public event Action? HiddenChanged;
 
     public string? MainExe
     {
@@ -195,6 +212,7 @@ public sealed class GameRow : INotifyPropertyChanged
     public string ConfigDetail => configDetail;
     public bool HasConfigPath => hasConfigPath;
     public bool ConfigMissing => configMissing;
+    public bool CanRestore => canRestore;
     public bool Located => lib.Overrides.TryGetValue(Game.InstallDir, out var o) && (o.ConfigPath != null || o.ConfigNote != null);
 
     public bool IsAsking
@@ -276,13 +294,14 @@ public sealed class GameRow : INotifyPropertyChanged
         var note = lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.ConfigNote ?? "" : "";
         hasConfigPath = path != null;
         configMissing = path != null && !File.Exists(path);
+        canRestore = path != null && File.Exists(path + ".orig");
         (configText, configDetail) = path != null
             ? configMissing
                 ? ("Конфиг ещё не создан: запустите игру один раз, выйдите и нажмите «Подобрать» снова", path)
                 : ($"Конфиг: {path}", "")
             : Located ? ("У игры нет текстового конфига — настройки только для меню игры", note)
             : ("Конфиг: будет найден при подборе", "");
-        foreach (var name in new[] { nameof(ConfigText), nameof(ConfigDetail), nameof(HasConfigPath), nameof(ConfigMissing) })
+        foreach (var name in new[] { nameof(ConfigText), nameof(ConfigDetail), nameof(HasConfigPath), nameof(ConfigMissing), nameof(CanRestore) })
             Notify(name);
     }
 

@@ -86,6 +86,41 @@ public class ConfigFinderTests
     }
 
     [Fact]
+    public void Find_MyGamesCandidateComesBeforeGameRoot()
+    {
+        WithTemp(dir =>
+        {
+            var roots = Roots(dir);
+            var install = Path.Combine(dir, "game");
+            Write(Path.Combine(install, "a.ini"), 10);
+            var mine = Path.Combine(roots.Documents, "My Games", "Zed", "video.ini");
+            Write(mine, 10);
+
+            var found = ConfigFinder.Find(MakeGame("Zed", install), roots);
+
+            Assert.Equal(mine, found[0].Path);
+            Assert.Equal(2, found.Count);
+        });
+    }
+
+    [Fact]
+    public void Find_PrefsFileComesBeforeOtherIniInSameFolder()
+    {
+        WithTemp(dir =>
+        {
+            var roots = Roots(dir);
+            Write(Path.Combine(roots.Documents, "My Games", "Zed", "a_settings.ini"), 10);
+            var prefs = Path.Combine(roots.Documents, "My Games", "Zed", "ZedPrefs.ini");
+            Write(prefs, 10);
+
+            var found = ConfigFinder.Find(MakeGame("Zed"), roots);
+
+            Assert.Equal(prefs, found[0].Path);
+            Assert.Equal(2, found.Count);
+        });
+    }
+
+    [Fact]
     public void Find_MasksCredentialLikeValues()
     {
         WithTemp(dir =>

@@ -44,6 +44,7 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         GamesGrid.ItemsSource = rows;
+        System.Windows.Data.CollectionViewSource.GetDefaultView(rows).Filter = r => ShowHiddenBox.IsChecked == true || !((GameRow)r).Hidden;
         RootsList.ItemsSource = settings.FolderRoots;
         KeyBox.Text = settings.SteamGridDbKey ?? "";
         ClaudeKeyBox.Text = settings.ClaudeApiKey ?? "";
@@ -79,11 +80,12 @@ public partial class MainWindow : Window
             settings.ClaudeBaseUrl = ClaudeUrlBox.Text.Trim() is { Length: > 0 } url ? url : null;
             SaveSettings();
         };
-        ClaudeModelBox.TextChanged += (_, _) =>
+        // An editable ComboBox has no TextChanged of its own; its inner TextBox raises the routed event (picking an item sets Text too).
+        ClaudeModelBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, (TextChangedEventHandler)((_, _) =>
         {
             settings.ClaudeModel = ClaudeModelBox.Text.Trim() is { Length: > 0 } model ? model : null;
             SaveSettings();
-        };
+        }));
         DefaultFpsBox.TextChanged += (_, _) =>
         {
             var text = DefaultFpsBox.Text.Trim();
@@ -135,6 +137,10 @@ public partial class MainWindow : Window
         RootGrid.SetResourceReference(BackgroundProperty, Backdrop.TryApply(this, !Theme.IsLight()) ? "WindowBackground" : "WindowBackgroundSolid");
 
     void CloseDetails_Click(object sender, RoutedEventArgs e) => GamesGrid.UnselectAll();
+
+    void RefreshFilter() => System.Windows.Data.CollectionViewSource.GetDefaultView(rows).Refresh();
+
+    void ShowHidden_Click(object sender, RoutedEventArgs e) => RefreshFilter();
 
     void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
@@ -233,7 +239,9 @@ public partial class MainWindow : Window
             var status = shortcuts != null && g.Source is GameSource.Folder or GameSource.App
                 ? SteamAdder.StatusOf(g, shortcuts, gridDir!)
                 : (SteamStatus?)null;
-            rows.Add(new GameRow(g, lib, status, onLibraryChanged, roots, DefaultGoal, () => !string.IsNullOrWhiteSpace(settings.ClaudeApiKey)));
+            var row = new GameRow(g, lib, status, onLibraryChanged, roots, DefaultGoal, () => !string.IsNullOrWhiteSpace(settings.ClaudeApiKey));
+            row.HiddenChanged += RefreshFilter;
+            rows.Add(row);
         }
         if (askingRow != null && CurrentRow(askingRow) is { } replaced)
         {
@@ -505,6 +513,30 @@ public partial class MainWindow : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.Write($"Apply advice: {ex}");
+            row.ApplyStatus = ex.Message;
+        }
+        row.LoadAdvice();
+        row.RefreshCanApply();
+        row.RefreshConfig();
+    }
+
+    void Restore_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not GameRow row) return;
+        if (MessageBox.Show(this, "Вернуть конфиг к состоянию до первого применения рекомендаций? Текущий файл сохранится как .bak.",
+                "metGameHUB", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        try
+        {
+            row.ApplyStatus = advisor.Restore(row.Game) switch
+            {
+                ApplyOutcome.Applied => "Исходный конфиг восстановлен",
+                ApplyOutcome.GameRunning => "Закройте игру и повторите",
+                _ => "Нет исходной копии",
+            };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Write($"Restore config: {ex}");
             row.ApplyStatus = ex.Message;
         }
         row.LoadAdvice();

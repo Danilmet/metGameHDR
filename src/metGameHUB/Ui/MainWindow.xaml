@@ -130,6 +130,9 @@
                                 <DataTrigger Binding="{Binding Cover}" Value="{x:Null}">
                                     <Setter TargetName="Placeholder" Property="Visibility" Value="Visible"/>
                                 </DataTrigger>
+                                <DataTrigger Binding="{Binding Hidden}" Value="True">
+                                    <Setter TargetName="Card" Property="Opacity" Value="0.45"/>
+                                </DataTrigger>
                                 <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
                                     <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource Accent}"/>
                                 </DataTrigger>
@@ -157,6 +160,8 @@
                         <CheckBox Style="{StaticResource HdrToggle}" Content="HDR" Margin="0,10,0,0"
                                   IsChecked="{Binding HdrEnabled, UpdateSourceTrigger=PropertyChanged}"
                                   Visibility="{Binding HdrApplies, Converter={StaticResource BoolToVisibility}}"/>
+                        <CheckBox Content="Скрыть" Margin="0,8,0,0" ToolTip="Не показывать в списке и не включать HDR"
+                                  IsChecked="{Binding Hidden, UpdateSourceTrigger=PropertyChanged}"/>
                         <TextBlock Text="Exe" Margin="0,14,0,4" Foreground="{DynamicResource TextSecondary}"/>
                         <ComboBox IsEditable="True" ItemsSource="{Binding ExeCandidates}" IsEnabled="{Binding CanAddToSteam}"
                                   Text="{Binding MainExe, UpdateSourceTrigger=PropertyChanged}"/>
@@ -174,6 +179,7 @@
                     <Button x:Name="AddAppButton" Content="Добавить приложение" Margin="8,0,0,0" Click="AddApp_Click"/>
                     <Button x:Name="AddToSteamButton" Content="Добавить выбранное в Steam" Margin="8,0,0,0"
                             Style="{StaticResource AccentButton}" Click="AddToSteam_Click"/>
+                    <CheckBox x:Name="ShowHiddenBox" Content="Показать скрытые" Margin="12,0,0,0" VerticalAlignment="Center" Click="ShowHidden_Click"/>
                     <TextBlock x:Name="StatusText" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
                 </StackPanel>
             </Grid>
@@ -190,7 +196,7 @@
                         </Grid.RowDefinitions>
 
                         <StackPanel Orientation="Horizontal">
-                            <Button Content="← Назад" VerticalAlignment="Center" Click="CloseGamePage_Click"/>
+                            <Button Content="← Назад" Height="72" Click="CloseGamePage_Click"/>
                             <Image Source="{Binding Cover}" Height="72" Margin="14,0,0,0" Stretch="Uniform"/>
                             <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Name}" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
@@ -343,6 +349,8 @@
                         <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,14,0,0">
                             <Button Content="Применить" Style="{StaticResource AccentButton}" Click="Apply_Click" IsEnabled="{Binding CanApplyNow}"/>
                             <Button Content="Отменить" Margin="8,0,0,0" Click="CloseGamePage_Click"/>
+                            <Button Content="Вернуть исходный конфиг" Margin="8,0,0,0" Click="Restore_Click" IsEnabled="{Binding IsIdle}"
+                                    Visibility="{Binding CanRestore, Converter={StaticResource BoolToVisibility}}"/>
                             <TextBlock Text="{Binding ApplyStatus, Mode=OneWay}" Margin="12,0,0,0" VerticalAlignment="Center"
                                        Foreground="{DynamicResource TextSecondary}"/>
                         </StackPanel>
@@ -400,7 +408,12 @@
                         <TextBox x:Name="ClaudeUrlBox"/>
                         <TextBlock Text="Пусто — api.anthropic.com; для своего прокси укажи его адрес" Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource TextSecondary}"/>
                         <TextBlock Text="Модель" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
-                        <TextBox x:Name="ClaudeModelBox"/>
+                        <ComboBox x:Name="ClaudeModelBox" IsEditable="True" Width="240" HorizontalAlignment="Left">
+                            <ComboBoxItem Content="claude-opus-5-5"/>
+                            <ComboBoxItem Content="claude-sonnet-5-5"/>
+                            <ComboBoxItem Content="claude-haiku-5-5"/>
+                            <ComboBoxItem Content="claude-fable-5-1"/>
+                        </ComboBox>
                         <TextBlock Text="Пусто — claude-opus-5-5; дешевле — claude-sonnet-5-5" Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource TextSecondary}"/>
                         <TextBlock Text="FPS по умолчанию (пусто — частота монитора)" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
                         <TextBox x:Name="DefaultFpsBox" Width="60" HorizontalAlignment="Left"/>

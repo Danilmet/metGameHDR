@@ -313,6 +313,34 @@ public class AdvisorTests
     }
 
     [Fact]
+    public void Restore_PutsOrigBack_KeepsBak_UpdatesCurrent()
+    {
+        using var e = new Env();
+        var advice = e.AdviceFor();
+        e.Lib.For(e.Game).Advice = advice;
+        e.Advisor().Apply(e.Game, advice);
+
+        Assert.Equal(ApplyOutcome.Applied, e.Advisor().Restore(e.Game));
+
+        Assert.Equal("[S]\r\nA=1\r\n", File.ReadAllText(e.Ini));
+        Assert.Equal("[S]\r\nA=2\r\n", File.ReadAllText(e.Ini + ".bak"));
+        Assert.True(File.Exists(e.Ini + ".orig"));
+        Assert.Equal("1", Library.Load(e.LibPath).For(e.Game).Advice!.Result.Settings[0].Current);
+    }
+
+    [Fact]
+    public void Restore_NoOrigOrGameRunning_LeavesFile()
+    {
+        using var e = new Env();
+        Assert.Equal(ApplyOutcome.FileMissing, e.Advisor().Restore(e.Game));
+
+        e.Advisor().Apply(e.Game, e.AdviceFor());
+        e.Running = true;
+        Assert.Equal(ApplyOutcome.GameRunning, e.Advisor().Restore(e.Game));
+        Assert.Equal("[S]\r\nA=2\r\n", File.ReadAllText(e.Ini));
+    }
+
+    [Fact]
     public void Apply_PathWithDifferentCaseAndSlashes_StillApplies()
     {
         using var e = new Env();

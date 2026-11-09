@@ -18,7 +18,7 @@ public sealed class Library
 
     public Game? FindByPath(string exePath) =>
         Games.Where(g => g.Source != GameSource.App
-                         && (!Overrides.TryGetValue(g.InstallDir, out var o) || o.HdrEnabled)
+                         && (!Overrides.TryGetValue(g.InstallDir, out var o) || o.HdrEnabled && !o.Hidden)
                          && exePath.StartsWith(g.InstallDir + '\\',StringComparison.OrdinalIgnoreCase))
              .MaxBy(g => g.InstallDir.Length);
 

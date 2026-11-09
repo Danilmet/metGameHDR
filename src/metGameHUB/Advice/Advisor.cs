@@ -129,6 +129,30 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
         return ApplyOutcome.Applied;
     }
 
+    // Puts <file>.orig (the state before the first apply) back; the replaced content goes to .bak as on apply.
+    public ApplyOutcome Restore(Game game)
+    {
+        var path = LocatedPath(lib, roots, game);
+        if (path == null || !File.Exists(path + ".orig")) return ApplyOutcome.FileMissing;
+        if (isRunning(game)) return ApplyOutcome.GameRunning;
+
+        if (File.Exists(path)) File.Copy(path, path + ".bak", overwrite: true);
+        var tmp = path + ".tmp";
+        File.Copy(path + ".orig", tmp, overwrite: true);
+        try { File.Move(tmp, path, overwrite: true); }
+        catch { File.Delete(tmp); throw; }
+
+        // Stored "current" values described the applied file; re-read them (raw) from the restored one.
+        if (lib.Overrides.TryGetValue(game.InstallDir, out var o) && o.Advice is { } advice)
+        {
+            var text = File.ReadAllText(path);
+            var settings = advice.Result.Settings.Select(x => x.Key != null ? x with { Current = IniEditor.CurrentValue(text, x.Section, x.Key) } : x).ToList();
+            o.Advice = advice with { Result = advice.Result with { Settings = settings } };
+        }
+        lib.Save(libraryPath);
+        return ApplyOutcome.Applied;
+    }
+
     static string? TryResolve(string template, string installDir)
     {
         try { return ResolvePath(template, installDir); }
