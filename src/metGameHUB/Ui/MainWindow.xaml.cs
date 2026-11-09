@@ -498,8 +498,8 @@ public partial class MainWindow : Window
             RefreshRows(row);
             foreach (var r in Targets(row)) r.ApplyStatus = "";
             SetStatus(row, "", "");
-            chat.Clear();
-            ChatScroll.ScrollToEnd();
+            if (GamePage.DataContext is GameRow shown && string.Equals(shown.Game.InstallDir, row.Game.InstallDir, StringComparison.OrdinalIgnoreCase)) chat.Clear();
+            _ = Dispatcher.BeginInvoke(ChatScroll.ScrollToEnd, System.Windows.Threading.DispatcherPriority.Loaded);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {

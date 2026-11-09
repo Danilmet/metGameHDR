@@ -173,7 +173,7 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
             content = new List<object> { Text(t.Text + (t.Attachments?.Count > 0 ? $"\n[вложения: {string.Join(", ", t.Attachments)}]" : "")) },
         }).ToList();
         var last = new List<object>();
-        if (!string.IsNullOrEmpty(r.Text)) last.Add(Text(r.Text));
+        if (!string.IsNullOrWhiteSpace(r.Text)) last.Add(Text(r.Text));
         last.AddRange(r.Attachments.Select(a => a.Block));
         msgs.Add(new { role = "user", content = last });
 

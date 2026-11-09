@@ -11,7 +11,8 @@ public sealed record ChatAttachment(string Name, object Block);
 public static class ChatAttachments
 {
     public const int MaxImageSide = 1568;
-    const int MaxImageBytes = 5 * 1024 * 1024;
+    const int MaxImageBytes = 5 * 1024 * 1024 / 4 * 3; // the API limit is 5 MB of base64
+    const long MaxFileBytes = 50 * 1024 * 1024;
     const int MaxPdfBytes = 20 * 1024 * 1024;
     const int MaxTextBytes = 1024 * 1024;
     const int MaxTextChars = 32768;
@@ -26,7 +27,7 @@ public static class ChatAttachments
             case ".png": case ".jpg": case ".jpeg":
                 return PrepareImage(path, name, ext == ".png" ? "image/png" : "image/jpeg", size);
             case ".gif": case ".webp":
-                Limit(size, MaxImageBytes, "5 МБ");
+                Limit(size, MaxImageBytes, "≈3,75 МБ");
                 return Base64(name, "image", ext == ".gif" ? "image/gif" : "image/webp", File.ReadAllBytes(path));
             case ".pdf":
                 Limit(size, MaxPdfBytes, "20 МБ");
@@ -51,6 +52,7 @@ public static class ChatAttachments
 
     static ChatAttachment PrepareImage(string path, string name, string media, long size)
     {
+        Limit(size, MaxFileBytes, "50 МБ");
         byte[] bytes = File.ReadAllBytes(path);
         BitmapSource frame;
         try
@@ -79,7 +81,7 @@ public static class ChatAttachments
         if (png.Length <= MaxImageBytes) return Base64(name, "image", "image/png", png);
         var jpg = Save(new JpegBitmapEncoder { QualityLevel = 90 }, image);
         if (jpg.Length <= MaxImageBytes) return Base64(name, "image", "image/jpeg", jpg);
-        throw new AdviceException("Изображение слишком большое (максимум 5 МБ)");
+        throw new AdviceException("Слишком большое изображение");
     }
 
     static byte[] Save(BitmapEncoder enc, BitmapSource image)

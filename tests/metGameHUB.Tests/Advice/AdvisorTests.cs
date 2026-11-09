@@ -131,6 +131,33 @@ public class AdvisorTests
     }
 
     [Fact]
+    public async Task AdjustAsync_NullSettings_KeepsPreviousSettings()
+    {
+        using var e = new Env();
+        var o = e.Lib.For(e.Game);
+        o.Advice = e.AdviceFor();
+
+        await e.Advisor(Reply("""{"reply":"Ок","summary":"s2","settings":null,"notes":null}""")).AdjustAsync(e.Game, GoalStep.Balanced, "x", [], CancellationToken.None);
+
+        Assert.Equal("Name", o.Advice!.Result.Settings.Single().Name);
+    }
+
+    [Fact]
+    public async Task AdjustAsync_SecretKeyInAdvice_NotSent()
+    {
+        using var e = new Env();
+        var o = e.Lib.For(e.Game);
+        o.Advice = new Advice.Advice(new AdviceResult("s", [new SettingAdvice("Pw", "1", "R", "S", "password", "x", "r"), new SettingAdvice("Name", "1", "Rec", "S", "A", "2", "r")], null), DateTime.UtcNow);
+
+        await e.Advisor(Reply(AdjustJson)).AdjustAsync(e.Game, GoalStep.Balanced, "x", [], CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(e.Handler!.Body);
+        using var ctx = JsonDocument.Parse(doc.RootElement.GetProperty("messages")[0].GetProperty("content")[0].GetProperty("text").GetString()!);
+        var sent = ctx.RootElement.GetProperty("advice").GetProperty("settings");
+        Assert.Equal("Name", sent.EnumerateArray().Single().GetProperty("name").GetString());
+    }
+
+    [Fact]
     public async Task AdjustAsync_BlankReply_StoresPlaceholder()
     {
         using var e = new Env();

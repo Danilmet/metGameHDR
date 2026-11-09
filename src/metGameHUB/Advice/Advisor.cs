@@ -92,9 +92,10 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
         if (o.Advice is not { } previous) throw new AdviceException("Сначала подберите настройки");
         if (string.IsNullOrWhiteSpace(text) && attachments.Count == 0) throw new AdviceException("Пустое сообщение");
         var history = o.Chat ?? [];
-        var result = await client.AdjustAsync(new AdjustRequest(Prepare(game, goal).Request, previous.Result, history, text, attachments), ct);
+        var sent = previous.Result with { Settings = previous.Result.Settings.Where(s => s.Key == null || !ConfigFinder.IsSecretKey(s.Key)).ToList() };
+        var result = await client.AdjustAsync(new AdjustRequest(Prepare(game, goal).Request, sent, history, text, attachments), ct);
 
-        var settings = result.Settings.Count > 0 ? result.Settings : previous.Result.Settings;
+        var settings = result.Settings is { Count: > 0 } s ? s : previous.Result.Settings;
         var advice = new Advice(new AdviceResult(result.Summary, settings, result.Notes), DateTime.UtcNow);
         var reply = string.IsNullOrWhiteSpace(result.Reply) ? "(без комментария)" : result.Reply;
         o.Advice = advice;

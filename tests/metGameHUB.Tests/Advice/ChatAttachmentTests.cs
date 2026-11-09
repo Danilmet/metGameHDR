@@ -51,6 +51,22 @@ public class ChatAttachmentTests : IDisposable
     });
 
     [Fact]
+    public void Prepare_NoisyPngOverLimit_BecomesJpeg() => Sta(() =>
+    {
+        const int w = 1500, h = 1000;
+        var px = new byte[w * h * 4];
+        new Random(1).NextBytes(px);
+        var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, px, w * 4);
+        var enc = new PngBitmapEncoder();
+        enc.Frames.Add(BitmapFrame.Create(bmp));
+        var path = Path.Combine(dir, "noise.png");
+        using (var fs = File.Create(path)) enc.Save(fs);
+        Assert.True(new FileInfo(path).Length > 5 * 1024 * 1024 / 4 * 3);
+        var src = Json(ChatAttachments.Prepare(path)).GetProperty("source");
+        Assert.Equal("image/jpeg", src.GetProperty("media_type").GetString());
+    });
+
+    [Fact]
     public void Prepare_SmallJpg_KeptAsJpeg() => Sta(() =>
     {
         var path = Path.Combine(dir, "a.jpg");

@@ -112,7 +112,7 @@ public sealed class ChatPanel
         {
             var name = $"скриншот-{DateTime.Now:HHmmss}.png";
             try { pending.Add(new(name, ChatAttachments.FromImage(image, name), null)); }
-            catch (AdviceException ex) { pending.Add(new(name, null, ex.Message)); }
+            catch (Exception ex) when (ex is AdviceException or IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException or InvalidOperationException) { pending.Add(new(name, null, ex.Message)); }
             e.Handled = true;
         }
     }

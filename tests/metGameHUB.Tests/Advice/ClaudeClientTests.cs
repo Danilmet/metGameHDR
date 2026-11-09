@@ -413,10 +413,13 @@ public class ClaudeClientTests
     {
         var img = new ChatAttachment("a.png", new { type = "image", source = new { type = "base64", media_type = "image/png", data = "x" } });
         var history = new[] { Turn(ChatRole.User, "q"), Turn(ChatRole.Assistant, "a") };
-        var last = Messages(ClaudeClient.BuildAdjustBody(Adjust(history, "", img), "m"))[^1].GetProperty("content");
+        foreach (var text in new[] { "", "  " })
+        {
+            var last = Messages(ClaudeClient.BuildAdjustBody(Adjust(history, text, img), "m"))[^1].GetProperty("content");
 
-        Assert.Equal(1, last.GetArrayLength());
-        Assert.Equal("image", last[0].GetProperty("type").GetString());
+            Assert.Equal(1, last.GetArrayLength());
+            Assert.Equal("image", last[0].GetProperty("type").GetString());
+        }
     }
 
     const string AdjustJson = """{"reply":"Поднял тени","summary":"s","settings":[{"name":"Shadows","current":"High","recommended":"Low","section":"S","key":"k","value":"0","reason":"r"}],"notes":null}""";
