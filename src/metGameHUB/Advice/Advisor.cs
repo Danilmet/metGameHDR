@@ -54,7 +54,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
         o.Advice = advice;
         o.Chat = null;
         var keyed = advice.Result.Settings.Where(s => s.Key != null).ToList();
-        if (path != null && keyed.Count > 0 && TryFileText(path) is { } text)
+        if (path != null && keyed.Count > 0 && ConfigStore.ReadText(path) is { } text)
         {
             var rows = fresh ? o.Snapshot!.Settings.ToList() : [];
             foreach (var s in keyed)
@@ -76,7 +76,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
         var effective = EffectiveGame(lib, game);
         var path = LocatedPath(lib, roots, game);
         var fresh = IsSnapshotFresh(lib, roots, game);
-        var stamp = path == null ? default : File.GetLastWriteTimeUtc(path); // before the request: a file rewritten meanwhile stays stale
+        var stamp = path == null ? default : ConfigStore.Stamp(path); // before the request: a file rewritten meanwhile stays stale
         var current = fresh ? lib.For(game).Snapshot!.Settings.Where(r => r.Key == null || !ConfigFinder.IsSecretKey(r.Key)).ToList() : null;
         var request = ReadConfig(path) is { } c
             ? new AdviceRequest(effective, hw, goal, c.Path, c.Format, c.Text, c.Truncated, current)
@@ -111,8 +111,8 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
     {
         var client = Client();
         var path = LocatedPath(lib, roots, game);
-        var stamp = path == null ? default : File.GetLastWriteTimeUtc(path);
-        if (ReadConfig(path) is not { } c || TryFileText(path!) is not { } text) return null;
+        var stamp = path == null ? default : ConfigStore.Stamp(path);
+        if (ReadConfig(path) is not { } c || ConfigStore.ReadText(path!) is not { } text) return null;
         var result = await client.ReadAsync(new ReadRequest(EffectiveGame(lib, game), c.Path, c.Format, c.Text, c.Truncated), ct);
         var snapshot = new ConfigSnapshot(UnrealScalability.Merge(result.Settings, text), DateTime.UtcNow, stamp);
         lib.For(game).Snapshot = snapshot;
@@ -122,13 +122,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
 
     public static bool IsSnapshotFresh(Library lib, FinderRoots roots, Game game) =>
         lib.Overrides.TryGetValue(game.InstallDir, out var o) && o.Snapshot is { } s
-        && LocatedPath(lib, roots, game) is { } p && File.Exists(p) && File.GetLastWriteTimeUtc(p) == s.FileStamp;
-
-    static string? TryFileText(string path)
-    {
-        try { return File.ReadAllText(path); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
-    }
+        && LocatedPath(lib, roots, game) is { } p && ConfigStore.Exists(p) && ConfigStore.Stamp(p) == s.FileStamp;
 
     public static Game EffectiveGame(Library lib, Game game) =>
         game with { Name = lib.SearchNameOf(game), MainExe = lib.MainExeOf(game) };
@@ -140,13 +134,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
         !string.IsNullOrWhiteSpace(e.Key) && e.Key.IndexOfAny(['=', '\r', '\n']) < 0
         && e.Value is not null && e.Value.IndexOfAny(['\r', '\n']) < 0);
 
-    // '<' (XML) is refused; '{' is accepted only as line JSON where every edited key already exists.
-    internal static bool CanWrite(string text, IReadOnlyList<ConfigEdit> edits)
-    {
-        var first = text.TrimStart('\uFEFF', ' ', '\t', '\r', '\n', '\0').FirstOrDefault();
-        if (first == '<') return false;
-        return first != '{' || edits.All(e => IniEditor.CurrentValue(text, null, e.Key) != null);
-    }
+    internal static bool CanWrite(string text, IReadOnlyList<ConfigEdit> edits) => ConfigStore.CanWrite("", text, edits);
 
     internal static string ResolvePath(string template, string installDir)
     {
@@ -174,25 +162,14 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
         var edits = Edits(advice.Result);
         if (edits.Count == 0) return ApplyOutcome.NoConfig;
         var path = LocatedPath(lib, roots, game);
-        if (path == null || !File.Exists(path)) return ApplyOutcome.FileMissing;
+        if (path == null || !ConfigStore.Exists(path)) return ApplyOutcome.FileMissing;
         if (!EditsValid(edits)) return ApplyOutcome.BadEdit;
         if (isRunning(game)) return ApplyOutcome.GameRunning;
 
         var freshBefore = IsSnapshotFresh(lib, roots, game);
-        var original = File.ReadAllBytes(path);
-        if (!CanWrite(File.ReadAllText(path), edits)) return ApplyOutcome.NotIni;
-        if (IniEditor.ApplyBytes(original, edits) is not { } updated)
-        {
-            Log.Write($"Apply advice: value does not fit the ANSI encoding of {path}");
-            return ApplyOutcome.BadEdit;
-        }
-        if (!File.Exists(path + ".orig")) File.WriteAllBytes(path + ".orig", original);
-        File.WriteAllBytes(path + ".bak", original);
-
-        var tmp = path + ".tmp";
-        File.WriteAllBytes(tmp, updated);
-        try { File.Move(tmp, path, overwrite: true); }
-        catch { File.Delete(tmp); throw; }
+        if (ConfigStore.ReadText(path) is not { } text) return ApplyOutcome.FileMissing;
+        if (!ConfigStore.CanWrite(path, text, edits)) return ApplyOutcome.NotIni;
+        if (!ConfigStore.Apply(path, edits)) return ApplyOutcome.BadEdit;
         // The file now holds the recommended values, so the stored advice shows them as current.
         var settings = advice.Result.Settings.Select(x => x.Key != null ? x with { Current = x.Recommended } : x).ToList();
         var o = lib.For(game);
@@ -205,7 +182,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
                 Settings = snap.Settings.Select(x => x.Key != null && advice.Result.Settings.LastOrDefault(a => a.Key != null
                     && string.Equals(a.Section, x.Section, StringComparison.OrdinalIgnoreCase)
                     && string.Equals(a.Key, x.Key, StringComparison.OrdinalIgnoreCase)) is { } a ? x with { Current = a.Recommended } : x).ToList(),
-                FileStamp = freshBefore ? File.GetLastWriteTimeUtc(path) : snap.FileStamp,
+                FileStamp = freshBefore ? ConfigStore.Stamp(path) : snap.FileStamp,
             };
         }
         lib.Save(libraryPath);
@@ -223,32 +200,28 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
     public ApplyOutcome Restore(Game game)
     {
         var path = LocatedPath(lib, roots, game);
-        if (path == null || !File.Exists(path + ".orig")) return ApplyOutcome.FileMissing;
+        if (path == null || !ConfigStore.HasBackup(path)) return ApplyOutcome.FileMissing;
         if (isRunning(game)) return ApplyOutcome.GameRunning;
 
         var freshBefore = IsSnapshotFresh(lib, roots, game);
-        if (File.Exists(path)) File.Copy(path, path + ".bak", overwrite: true);
-        var tmp = path + ".tmp";
-        File.Copy(path + ".orig", tmp, overwrite: true);
-        try { File.Move(tmp, path, overwrite: true); }
-        catch { File.Delete(tmp); throw; }
+        ConfigStore.Restore(path);
 
         // Stored "current" values described the applied file; re-read them (raw) from the restored one.
-        var text = File.ReadAllText(path);
+        var text = ConfigStore.ReadText(path) ?? "";
         if (lib.Overrides.TryGetValue(game.InstallDir, out var o))
         {
             o.Chat = null;
             if (o.Advice is { } advice)
             {
-                var settings = advice.Result.Settings.Select(x => x.Key != null ? x with { Current = IniEditor.CurrentValue(text, x.Section, x.Key) } : x).ToList();
+                var settings = advice.Result.Settings.Select(x => x.Key != null ? x with { Current = ConfigStore.CurrentValue(path, text, x.Section, x.Key) } : x).ToList();
                 o.Advice = advice with { Result = advice.Result with { Settings = settings } };
             }
             if (o.Snapshot is { } snap)
                 o.Snapshot = snap with
                 {
                     Settings = snap.Settings.Select(x => x.Key == null ? x
-                        : x with { Current = IniEditor.CurrentValue(text, x.Section, x.Key) is { } raw ? UnrealScalability.Describe(x.Section, x.Key, raw)?.Current ?? raw : null }).ToList(),
-                    FileStamp = freshBefore ? File.GetLastWriteTimeUtc(path) : snap.FileStamp,
+                        : x with { Current = ConfigStore.CurrentValue(path, text, x.Section, x.Key) is { } raw ? UnrealScalability.Describe(x.Section, x.Key, raw)?.Current ?? raw : null }).ToList(),
+                    FileStamp = freshBefore ? ConfigStore.Stamp(path) : snap.FileStamp,
                 };
         }
         lib.Save(libraryPath);
@@ -268,17 +241,11 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
 
     static (string Path, string Format, string Text, bool Truncated)? ReadConfig(string? path)
     {
-        if (path == null || !File.Exists(path)) return null;
-        try
-        {
-            using var reader = new StreamReader(path);
-            var buf = new char[MaxConfigChars + 1];
-            var n = reader.ReadBlock(buf, 0, buf.Length);
-            var text = ConfigFinder.MaskSecrets(new string(buf, 0, Math.Min(n, MaxConfigChars)));
-            var format = text.TrimStart('\uFEFF', ' ', '\t', '\r', '\n').StartsWith('{') ? "json" : "ini";
-            return (path, format, text, n > MaxConfigChars);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+        if (path == null || !ConfigStore.Exists(path)) return null;
+        if (ConfigStore.ReadText(path) is not { } raw) return null;
+        var text = ConfigFinder.MaskSecrets(raw.Length > MaxConfigChars ? raw[..MaxConfigChars] : raw);
+        var format = text.TrimStart('\uFEFF', ' ', '\t', '\r', '\n').StartsWith('{') ? "json" : "ini";
+        return (path, format, text, raw.Length > MaxConfigChars);
     }
 
     static List<string> RootEntries(string installDir)

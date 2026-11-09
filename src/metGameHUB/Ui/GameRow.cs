@@ -251,7 +251,7 @@ public sealed class GameRow : INotifyPropertyChanged
     public bool ConfigMissing => configMissing;
     public bool CanRestore => canRestore;
     public bool SnapshotStale => lib.Overrides.TryGetValue(Game.InstallDir, out var o) && o.Snapshot != null
-        && Advisor.LocatedPath(lib, roots, Game) is { } p && File.Exists(p) && !Advisor.IsSnapshotFresh(lib, roots, Game);
+        && Advisor.LocatedPath(lib, roots, Game) is { } p && ConfigStore.Exists(p) && !Advisor.IsSnapshotFresh(lib, roots, Game);
     public bool Located => lib.Overrides.TryGetValue(Game.InstallDir, out var o) && (o.ConfigPath != null || o.ConfigNote != null);
 
     public bool IsAsking
@@ -318,8 +318,8 @@ public sealed class GameRow : INotifyPropertyChanged
             {
                 canApply = Advisor.EditsValid(edits)
                     && Advisor.LocatedPath(lib, roots, Game) is { } path
-                    && File.Exists(path)
-                    && Advisor.CanWrite(File.ReadAllText(path), edits);
+                    && ConfigStore.ReadText(path) is { } text
+                    && ConfigStore.CanWrite(path, text, edits);
             }
             catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException) { }
         }
@@ -335,9 +335,9 @@ public sealed class GameRow : INotifyPropertyChanged
         var path = Advisor.LocatedPath(lib, roots, Game);
         var note = lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.ConfigNote ?? "" : "";
         hasConfigPath = path != null;
-        configMissing = path != null && !File.Exists(path);
-        canRestore = path != null && File.Exists(path + ".orig");
-        wasApplied = path != null && File.Exists(path + ".bak");
+        configMissing = path != null && !ConfigStore.Exists(path);
+        canRestore = path != null && ConfigStore.HasBackup(path);
+        wasApplied = path != null && ConfigStore.WasApplied(path);
         (configText, configDetail) = path != null
             ? configMissing
                 ? ("Конфиг ещё не создан: запустите игру один раз, выйдите и нажмите «Подобрать» снова", path)
@@ -363,7 +363,7 @@ public sealed class GameRow : INotifyPropertyChanged
         var snapshot = lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.Snapshot : null;
         var current = latest != null
             ? Advisor.IsSnapshotFresh(lib, roots, Game) ? snapshot!.Settings : null
-            : (Advisor.LocatedPath(lib, roots, Game) is { } p && File.Exists(p) ? snapshot?.Settings : null) ?? provisional;
+            : (Advisor.LocatedPath(lib, roots, Game) is { } p && ConfigStore.Exists(p) ? snapshot?.Settings : null) ?? provisional;
         return AdviceTable.Build(latest, current);
     }
 

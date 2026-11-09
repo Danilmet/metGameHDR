@@ -623,12 +623,9 @@ public partial class MainWindow : Window
     // Shows the raw values at once; the model's readable version replaces them when it arrives.
     void ShowProvisionalFromFile(GameRow row, string path)
     {
-        try
-        {
-            var rows = UnrealScalability.FromFile(File.ReadAllText(path));
-            foreach (var r in Targets(row)) r.ShowProvisional(rows);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        if (ConfigStore.ReadText(path) is not { } text) return;
+        var rows = UnrealScalability.FromFile(text);
+        foreach (var r in Targets(row)) r.ShowProvisional(rows);
     }
 
     void RefreshRows(GameRow row)
@@ -687,7 +684,7 @@ public partial class MainWindow : Window
             {
                 ApplyOutcome.Applied => "Применено",
                 ApplyOutcome.GameRunning => "Закройте игру и повторите",
-                ApplyOutcome.FileMissing => "Файл не найден",
+                ApplyOutcome.FileMissing => "Конфиг не найден",
                 ApplyOutcome.NotIni => "Файл не в формате INI",
                 ApplyOutcome.BadEdit => "Некорректные правки в ответе",
                 _ => "Нет файла для записи",
