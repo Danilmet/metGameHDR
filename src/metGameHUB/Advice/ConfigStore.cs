@@ -20,7 +20,7 @@ public static class ConfigStore
 
     public static string? ReadText(string path)
     {
-        if (IsRegistry(path)) return RegistryConfig.Dump(path);
+        if (IsRegistry(path)) return RegistryConfig.Exists(path) ? RegistryConfig.Dump(path) : null;
         try { return File.ReadAllText(path); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
     }
@@ -38,9 +38,11 @@ public static class ConfigStore
     {
         if (IsRegistry(path))
         {
+            if (RegistryConfig.Prepare(path, edits) is not { } writes) return false;
             if (!File.Exists(Orig(path))) RegistryConfig.Backup(path, Orig(path));
             RegistryConfig.Backup(path, Bak(path));
-            return RegistryConfig.Apply(path, edits);
+            RegistryConfig.Write(path, writes);
+            return true;
         }
         var original = File.ReadAllBytes(path);
         if (IniEditor.ApplyBytes(original, edits) is not { } updated)

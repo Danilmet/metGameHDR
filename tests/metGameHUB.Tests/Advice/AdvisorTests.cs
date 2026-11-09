@@ -931,6 +931,8 @@ public class AdvisorTests
     {
         using var e = new Env();
         e.Lib.For(e.Game).ConfigPath = @"HKCU\Software\metGameHUB.Tests\none" + Guid.NewGuid().ToString("N");
+        Assert.NotNull(Advisor.LocatedPath(e.Lib, e.Roots, e.Game));
+        Assert.Null(ConfigStore.ReadText(e.Lib.For(e.Game).ConfigPath!));
         Assert.Equal(ApplyOutcome.FileMissing, e.Advisor().Apply(e.Game, new Advice.Advice(new AdviceResult("s", [new SettingAdvice("W", null, "1", null, "Width_h1", "1", "r")], null), DateTime.UtcNow)));
     }
 
@@ -939,5 +941,6 @@ public class AdvisorTests
         using var e = new Env(); e.RegKey();
         var advice = new Advice.Advice(new AdviceResult("s", [new SettingAdvice("W", null, "1", null, "Nope_h9", "1", "r")], null), DateTime.UtcNow);
         Assert.Equal(ApplyOutcome.BadEdit, e.Advisor().Apply(e.Game, advice));
+        Assert.Empty(Directory.GetFiles(e.BackupDir));
     }
 }
