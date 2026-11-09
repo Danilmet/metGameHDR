@@ -66,7 +66,7 @@ public static class ConfigStore
     {
         if (IsRegistry(path))
         {
-            RegistryConfig.Backup(path, Bak(path));
+            if (RegistryConfig.Exists(path)) RegistryConfig.Backup(path, Bak(path));
             RegistryConfig.Restore(Orig(path));
             return;
         }

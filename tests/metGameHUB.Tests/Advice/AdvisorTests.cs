@@ -54,7 +54,7 @@ public class AdvisorTests
         public bool Running;
         public Fake? Handler;
         public string BackupDir;
-        string? regSub;
+        public string? regSub;
 
         public Env()
         {
@@ -915,6 +915,16 @@ public class AdvisorTests
         Assert.Equal(ApplyOutcome.Applied, e.Advisor().Restore(e.Game));
         Assert.Equal(1920, e.RegValue("Width_h1"));
         Assert.Equal("1920", e.Lib.For(e.Game).Advice!.Result.Settings[0].Current);
+    }
+
+    [Fact] public void Restore_RegistryKeyDeleted_RestoresFromOrig()
+    {
+        using var e = new Env(); e.RegKey();
+        var advice = new Advice.Advice(new AdviceResult("s", [new SettingAdvice("W", "1920", "2560", null, "Width_h1", "2560", "r")], null), DateTime.UtcNow);
+        Assert.Equal(ApplyOutcome.Applied, e.Advisor().Apply(e.Game, advice));
+        Registry.CurrentUser.DeleteSubKeyTree(e.regSub!, false);
+        Assert.Equal(ApplyOutcome.Applied, e.Advisor().Restore(e.Game));
+        Assert.Equal(1920, e.RegValue("Width_h1"));
     }
 
     [Fact] public void Apply_RegistryKeyMissing_FileMissing()
