@@ -385,7 +385,7 @@ public partial class MainWindow : Window
 
     void Ask_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is GameRow row) _ = RunAdviceAsync(row, true);
+        if ((sender as FrameworkElement)?.DataContext is GameRow row) _ = RunAdviceAsync(row, AdviceMode.Ask);
     }
 
     void ResetTarget_Click(object sender, RoutedEventArgs e)
@@ -395,11 +395,19 @@ public partial class MainWindow : Window
 
     void Locate_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is GameRow row) _ = RunAdviceAsync(row, false);
+        if ((sender as FrameworkElement)?.DataContext is GameRow row) _ = RunAdviceAsync(row, AdviceMode.Locate);
     }
 
-    // Stage 1 finds the config file (skipped for «Подобрать» when already located), stage 2 asks for advice.
-    async Task RunAdviceAsync(GameRow row, bool ask)
+    void RefreshSnapshot_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is GameRow row) _ = RunAdviceAsync(row, AdviceMode.Read);
+    }
+
+    enum AdviceMode { Locate, Ask, Read }
+
+    // Locate finds the config file (skipped for Ask when already located), then the model reads the current settings
+    // (skipped for Ask on an already located file: the ask reuses a fresh snapshot or reads it itself); Ask then requests advice.
+    async Task RunAdviceAsync(GameRow row, AdviceMode mode)
     {
         if (asking != null) return;
         using var cts = new CancellationTokenSource();
@@ -407,15 +415,34 @@ public partial class MainWindow : Window
         askingRow = row;
         SetAsking(row, true);
         SetStatus(row, "", "");
+        string? readError = null;
         try
         {
-            if (!ask || !row.Located)
+            var read = mode == AdviceMode.Read;
+            if (mode == AdviceMode.Locate || (mode == AdviceMode.Ask && !row.Located))
             {
                 SetStatus(row, "Ищем конфиг…", "");
-                await advisor.LocateAsync(row.Game, cts.Token);
+                var status = await advisor.LocateAsync(row.Game, cts.Token);
+                read = status.Exists && status.Format != "none";
+                if (read) ShowProvisionalFromFile(row, status.Path!);
             }
             foreach (var r in Targets(row)) r.RefreshConfig();
-            if (!ask) return;
+            if (read && !row.ConfigMissing)
+            {
+                SetStatus(row, "Разбираем конфиг…", "");
+                try
+                {
+                    await advisor.ReadAsync(row.Game, cts.Token);
+                }
+                catch (Exception ex) when (!cts.IsCancellationRequested)
+                {
+                    Log.Write($"Read config: {ex}");
+                    readError = $"Не удалось разобрать конфиг: {ex.Message}";
+                }
+                RefreshRows(row);
+                if (mode != AdviceMode.Ask) SetStatus(row, "", readError ?? "");
+            }
+            if (mode != AdviceMode.Ask) return;
             if (row.ConfigMissing)
             {
                 SetStatus(row, "", "Запустите игру один раз и повторите");
@@ -424,13 +451,9 @@ public partial class MainWindow : Window
             SetStatus(row, "Подбираем настройки…", "");
             await advisor.AskAsync(row.Game, row.Goal, cts.Token);
             // RebuildRows may have replaced the row during the request.
-            foreach (var r in Targets(row))
-            {
-                r.LoadAdvice();
-                r.RefreshCanApply();
-                r.RefreshConfig();
-                r.ApplyStatus = "";
-            }
+            RefreshRows(row);
+            foreach (var r in Targets(row)) r.ApplyStatus = "";
+            SetStatus(row, "", readError ?? "");
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
@@ -439,13 +462,35 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Log.Write($"Advice: {ex}");
-            SetStatus(row, "", ex is TaskCanceledException ? "Время ожидания ответа истекло" : ex.Message);
+            var message = ex is TaskCanceledException ? "Время ожидания ответа истекло" : ex.Message;
+            SetStatus(row, "", readError == null ? message : $"{readError}\n{message}");
         }
         finally
         {
             if (ReferenceEquals(asking, cts)) asking = null;
             askingRow = null;
             SetAsking(row, false);
+        }
+    }
+
+    // Shows the raw values at once; the model's readable version replaces them when it arrives.
+    void ShowProvisionalFromFile(GameRow row, string path)
+    {
+        try
+        {
+            var rows = UnrealScalability.FromFile(File.ReadAllText(path));
+            foreach (var r in Targets(row)) r.ShowProvisional(rows);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+    }
+
+    void RefreshRows(GameRow row)
+    {
+        foreach (var r in Targets(row))
+        {
+            r.LoadAdvice();
+            r.RefreshCanApply();
+            r.RefreshConfig();
         }
     }
 

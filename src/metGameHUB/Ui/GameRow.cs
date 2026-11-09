@@ -8,8 +8,6 @@ using MetGameHUB.Steam;
 
 namespace MetGameHUB.Ui;
 
-public sealed record AdviceRowVm(string Name, string Current, string Recommended, string Reason, bool IsConfig);
-
 public sealed class GameRow : INotifyPropertyChanged
 {
     readonly Library lib;
@@ -30,6 +28,7 @@ public sealed class GameRow : INotifyPropertyChanged
     string adviceStatus = "";
     string applyStatus = "";
     IReadOnlyList<AdviceRowVm> adviceRows = [];
+    IReadOnlyList<CurrentSetting>? provisional;
 
     public GameRow(Game game, Library lib, SteamStatus? steamStatus, Action onHdrChanged,
         FinderRoots roots, Func<GoalStep> defaultTarget, Func<int> hz, Func<bool> hasKey)
@@ -196,7 +195,8 @@ public sealed class GameRow : INotifyPropertyChanged
     public bool HasAdvice => latest != null;
     public string AdviceSummary => latest?.Result.Summary ?? "";
     public IReadOnlyList<AdviceRowVm> AdviceRows => adviceRows;
-    public string AdviceHeading => latest != null && Advisor.Edits(latest.Result).Count > 0 ? "Рекомендуемые настройки:" : "Выставить в меню игры:";
+    public bool HasRows => adviceRows.Count > 0;
+    public string AdviceHeading => latest == null ? "Текущие настройки:" : Advisor.Edits(latest.Result).Count > 0 ? "Рекомендуемые настройки:" : "Выставить в меню игры:";
     public string OptimizedText => latest is null ? "Настройки не подобраны" : $"Настройки подобраны {AdviceAt}";
     public string AdviceNotes => latest?.Result.Notes ?? "";
     public string AdviceAt => latest is null ? "" : latest.At.ToLocalTime().ToString("dd.MM HH:mm");
@@ -212,6 +212,8 @@ public sealed class GameRow : INotifyPropertyChanged
     public bool HasConfigPath => hasConfigPath;
     public bool ConfigMissing => configMissing;
     public bool CanRestore => canRestore;
+    public bool SnapshotStale => lib.Overrides.TryGetValue(Game.InstallDir, out var o) && o.Snapshot != null
+        && Advisor.LocatedPath(lib, roots, Game) is { } p && File.Exists(p) && !Advisor.IsSnapshotFresh(lib, roots, Game);
     public bool Located => lib.Overrides.TryGetValue(Game.InstallDir, out var o) && (o.ConfigPath != null || o.ConfigNote != null);
 
     public bool IsAsking
@@ -260,8 +262,9 @@ public sealed class GameRow : INotifyPropertyChanged
     {
         latest = lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.Advice : null;
         canApply = false;
-        adviceRows = [];
-        foreach (var name in new[] { nameof(Latest), nameof(HasAdvice), nameof(AdviceSummary), nameof(AdviceRows), nameof(AdviceHeading), nameof(OptimizedText), nameof(AdviceNotes), nameof(AdviceAt), nameof(CanApply), nameof(CanApplyNow), nameof(TargetIndex), nameof(TargetText), nameof(HasOwnTarget) })
+        provisional = null;
+        adviceRows = []; // rebuilt by RefreshCanApply/RefreshConfig: BuildRows touches the file system
+        foreach (var name in new[] { nameof(HasRows), nameof(SnapshotStale), nameof(Latest), nameof(HasAdvice), nameof(AdviceSummary), nameof(AdviceRows), nameof(AdviceHeading), nameof(OptimizedText), nameof(AdviceNotes), nameof(AdviceAt), nameof(CanApply), nameof(CanApplyNow), nameof(TargetIndex), nameof(TargetText), nameof(HasOwnTarget) })
             Notify(name);
     }
 
@@ -300,12 +303,28 @@ public sealed class GameRow : INotifyPropertyChanged
                 : ($"Конфиг: {path}", "")
             : Located ? ("У игры нет текстового конфига — настройки только для меню игры", note)
             : ("Конфиг: будет найден при подборе", "");
-        foreach (var name in new[] { nameof(ConfigText), nameof(ConfigDetail), nameof(HasConfigPath), nameof(ConfigMissing), nameof(CanRestore) })
+        adviceRows = BuildRows();
+        foreach (var name in new[] { nameof(ConfigText), nameof(ConfigDetail), nameof(HasConfigPath), nameof(ConfigMissing), nameof(CanRestore), nameof(SnapshotStale), nameof(HasRows), nameof(AdviceRows), nameof(AdviceHeading) })
             Notify(name);
     }
 
-    List<AdviceRowVm> BuildRows() =>
-        latest?.Result.Settings.Select(s => new AdviceRowVm(s.Name, s.Current ?? "—", s.Recommended, s.Reason, s.Key != null)).ToList() ?? [];
+    // Rows parsed locally from the file while the model request still runs.
+    public void ShowProvisional(IReadOnlyList<CurrentSetting> rows)
+    {
+        provisional = rows;
+        adviceRows = BuildRows();
+        foreach (var name in new[] { nameof(HasRows), nameof(AdviceRows), nameof(AdviceHeading) })
+            Notify(name);
+    }
+
+    List<AdviceRowVm> BuildRows()
+    {
+        var snapshot = lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.Snapshot : null;
+        var current = latest != null
+            ? Advisor.IsSnapshotFresh(lib, roots, Game) ? snapshot!.Settings : null
+            : snapshot?.Settings ?? provisional;
+        return AdviceTable.Build(latest, current);
+    }
 
     public void NotifyDefaultsChanged()
     {

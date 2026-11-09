@@ -237,6 +237,9 @@
                                            ToolTip="{Binding ConfigText, Mode=OneWay}" ToolTipService.IsEnabled="{Binding HasConfigPath}"/>
                                 <Button Content="Найти заново" Margin="10,0,0,0" VerticalAlignment="Center" Style="{StaticResource LinkButton}"
                                         Click="Locate_Click" IsEnabled="{Binding CanLocate}"/>
+                                <Button Content="Конфиг изменился — Обновить" Margin="10,0,0,0" VerticalAlignment="Center" Style="{StaticResource LinkButton}"
+                                        Click="RefreshSnapshot_Click" IsEnabled="{Binding IsIdle}"
+                                        Visibility="{Binding SnapshotStale, Converter={StaticResource BoolToVisibility}}"/>
                             </StackPanel>
                             <TextBlock Text="{Binding ConfigDetail, Mode=OneWay}" MaxWidth="900" HorizontalAlignment="Left" FontSize="12"
                                        TextWrapping="Wrap" Foreground="{DynamicResource TextSecondary}">
@@ -252,25 +255,26 @@
                             </TextBlock>
                         </StackPanel>
 
-                        <TextBlock Grid.Row="3" Margin="0,14,0,0" Text="Нажмите «Подобрать», чтобы получить рекомендации"
-                                   Foreground="{DynamicResource TextSecondary}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding HasAdvice}" Value="False">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
                         <ScrollViewer Grid.Row="3" Margin="0,14,0,0" VerticalScrollBarVisibility="Auto">
-                            <StackPanel MaxWidth="900" HorizontalAlignment="Left" Grid.IsSharedSizeScope="True"
-                                        Visibility="{Binding HasAdvice, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="{Binding AdviceSummary, Mode=OneWay}" TextWrapping="Wrap"/>
-                                <TextBlock Text="{Binding AdviceHeading, Mode=OneWay}" Margin="0,14,0,6" FontWeight="SemiBold"/>
-                                <Grid Margin="8,0,8,4">
+                            <StackPanel MaxWidth="900" HorizontalAlignment="Left" Grid.IsSharedSizeScope="True">
+                                <TextBlock Text="Нажмите «Подобрать», чтобы получить рекомендации"
+                                           Foreground="{DynamicResource TextSecondary}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasAdvice}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="{Binding AdviceSummary, Mode=OneWay}" TextWrapping="Wrap"
+                                           Visibility="{Binding HasAdvice, Converter={StaticResource BoolToVisibility}}"/>
+                                <TextBlock Text="{Binding AdviceHeading, Mode=OneWay}" Margin="0,14,0,6" FontWeight="SemiBold"
+                                           Visibility="{Binding HasRows, Converter={StaticResource BoolToVisibility}}"/>
+                                <Grid Margin="8,0,8,4" Visibility="{Binding HasRows, Converter={StaticResource BoolToVisibility}}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="Name"/>
                                         <ColumnDefinition Width="Auto" MinWidth="120" SharedSizeGroup="Current"/>
