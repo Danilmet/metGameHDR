@@ -12,7 +12,7 @@ namespace MetGameHUB.Tests;
 
 public class AdvisorTests
 {
-    sealed class Fake(string json) : HttpMessageHandler
+    sealed class Fake(string json, HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler
     {
         public string Body = "";
         public Action? OnSend;
@@ -21,7 +21,7 @@ public class AdvisorTests
         {
             OnSend?.Invoke();
             Body = await request.Content!.ReadAsStringAsync(ct);
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) };
+            return new HttpResponseMessage(status) { Content = new StringContent(json) };
         }
     }
 
@@ -67,9 +67,9 @@ public class AdvisorTests
 
         public FinderRoots Roots => new(Path.Combine(Dir, "empty"), Path.Combine(Dir, "empty"), Path.Combine(Dir, "empty"));
 
-        public Advisor Advisor(string json = "{}") => new(() => "key", () => null, () => new ClaudeChoice(null), Lib, LibPath,
+        public Advisor Advisor(string json = "{}", string? key = "key", HttpStatusCode status = HttpStatusCode.OK) => new(() => key, () => null, () => new ClaudeChoice(null), Lib, LibPath,
             () => new HardwareInfo("GPU", 8, "CPU", 16, 1920, 1080, 60, "Win"),
-            Roots, _ => Running, new HttpClient(Handler = new Fake(json)));
+            Roots, _ => Running, new HttpClient(Handler = new Fake(json, status)));
 
         public Advice.Advice AdviceFor(string value = "2") =>
             new(new AdviceResult("s", [new SettingAdvice("Name", "1", "Rec", "S", "A", value, "r")], null), DateTime.UtcNow);
@@ -88,6 +88,169 @@ public class AdvisorTests
         using var doc = JsonDocument.Parse(body);
         using var user = JsonDocument.Parse(doc.RootElement.GetProperty("messages")[0].GetProperty("content").GetString()!);
         return user.RootElement.GetProperty("current").Clone();
+    }
+
+    const string AdjustJson = """{"reply":"Поднял","summary":"new","settings":[{"name":"Shadows","current":"1","recommended":"High","section":"S","key":"A","value":"3","reason":"r"}],"notes":null}""";
+    static ChatAttachment Png => new("a.png", new { type = "image" });
+
+    static List<ChatTurn> Pair() => [new(ChatRole.User, "q", null, DateTime.UtcNow), new(ChatRole.Assistant, "a", null, DateTime.UtcNow)];
+
+    [Fact]
+    public async Task AdjustAsync_SavesAdviceAndBothTurns()
+    {
+        using var e = new Env();
+        var o = e.Lib.For(e.Game);
+        o.Advice = e.AdviceFor();
+
+        var advice = await e.Advisor(Reply(AdjustJson)).AdjustAsync(e.Game, GoalStep.Balanced, "тени выше", [Png], CancellationToken.None);
+
+        Assert.Equal("Shadows", advice.Result.Settings[0].Name);
+        Assert.Equal("new", o.Advice!.Result.Summary);
+        Assert.Collection(o.Chat!,
+            t => { Assert.Equal(ChatRole.User, t.Role); Assert.Equal("тени выше", t.Text); Assert.Equal(["a.png"], t.Attachments); },
+            t => { Assert.Equal(ChatRole.Assistant, t.Role); Assert.Equal("Поднял", t.Text); });
+        var saved = Library.Load(e.LibPath).For(e.Game);
+        Assert.Equal(2, saved.Chat!.Count);
+        Assert.Equal("Shadows", saved.Advice!.Result.Settings[0].Name);
+    }
+
+    [Fact]
+    public async Task AdjustAsync_EmptySettings_KeepsPreviousSettings()
+    {
+        using var e = new Env();
+        var o = e.Lib.For(e.Game);
+        o.Advice = e.AdviceFor();
+
+        await e.Advisor(Reply("""{"reply":"Ок","summary":"s2","settings":[],"notes":"n2"}""")).AdjustAsync(e.Game, GoalStep.Balanced, "x", [], CancellationToken.None);
+
+        Assert.Equal("Name", o.Advice!.Result.Settings.Single().Name);
+        Assert.Equal("s2", o.Advice.Result.Summary);
+        Assert.Equal("n2", o.Advice.Result.Notes);
+        Assert.Equal("Ок", o.Chat![1].Text);
+        Assert.Null(o.Chat[0].Attachments);
+    }
+
+    [Fact]
+    public async Task AdjustAsync_BlankReply_StoresPlaceholder()
+    {
+        using var e = new Env();
+        var o = e.Lib.For(e.Game);
+        o.Advice = e.AdviceFor();
+
+        await e.Advisor(Reply("""{"reply":"","summary":"s","settings":[],"notes":null}""")).AdjustAsync(e.Game, GoalStep.Balanced, "x", [], CancellationToken.None);
+
+        Assert.Equal("(без комментария)", o.Chat![1].Text);
+    }
+
+    [Fact]
+    public async Task AdjustAsync_ApiError_KeepsAdviceAndChat()
+    {
+        using var e = new Env();
+        var o = e.Lib.For(e.Game);
+        o.Advice = e.AdviceFor();
+        o.Chat = Pair();
+        var before = o.Advice;
+
+        await Assert.ThrowsAsync<AdviceException>(() =>
+            e.Advisor("{}", status: HttpStatusCode.InternalServerError).AdjustAsync(e.Game, GoalStep.Balanced, "x", [], CancellationToken.None));
+
+        Assert.Same(before, o.Advice);
+        Assert.Equal(2, o.Chat.Count);
+    }
+
+    [Fact]
+    public async Task AdjustAsync_NoKey_Throws()
+    {
+        using var e = new Env();
+        e.Lib.For(e.Game).Advice = e.AdviceFor();
+        var advisor = e.Advisor(key: null);
+
+        var ex = await Assert.ThrowsAsync<AdviceException>(() => advisor.AdjustAsync(e.Game, GoalStep.Balanced, "x", [], CancellationToken.None));
+
+        Assert.Equal("Не задан ключ API", ex.Message);
+        Assert.Equal("", e.Handler!.Body);
+    }
+
+    [Fact]
+    public async Task AdjustAsync_NoAdvice_Throws()
+    {
+        using var e = new Env();
+
+        var ex = await Assert.ThrowsAsync<AdviceException>(() => e.Advisor().AdjustAsync(e.Game, GoalStep.Balanced, "x", [], CancellationToken.None));
+
+        Assert.Equal("Сначала подберите настройки", ex.Message);
+    }
+
+    [Fact]
+    public async Task AdjustAsync_BlankMessage_ThrowsWithoutRequest()
+    {
+        using var e = new Env();
+        e.Lib.For(e.Game).Advice = e.AdviceFor();
+        var advisor = e.Advisor();
+
+        var ex = await Assert.ThrowsAsync<AdviceException>(() => advisor.AdjustAsync(e.Game, GoalStep.Balanced, "  ", [], CancellationToken.None));
+
+        Assert.Equal("Пустое сообщение", ex.Message);
+        Assert.Equal("", e.Handler!.Body);
+    }
+
+    [Fact]
+    public async Task AdjustAsync_SendsHistoryAndFreshCurrent()
+    {
+        using var e = new Env();
+        var o = e.Lib.For(e.Game);
+        o.Advice = e.AdviceFor();
+        o.Chat = Pair();
+        o.Snapshot = Snap(e);
+
+        await e.Advisor(Reply(AdjustJson)).AdjustAsync(e.Game, GoalStep.Balanced, "x", [], CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(e.Handler!.Body);
+        var msgs = doc.RootElement.GetProperty("messages");
+        Assert.Equal(3, msgs.GetArrayLength());
+        var context = msgs[0].GetProperty("content")[0].GetProperty("text").GetString()!;
+        Assert.Contains("\"current\"", context);
+        Assert.Contains("\"advice\"", context);
+        Assert.Equal(4, o.Chat!.Count);
+    }
+
+    [Fact]
+    public async Task AskAsync_ClearsChat()
+    {
+        using var e = new Env();
+        var o = e.Lib.For(e.Game);
+        o.Chat = Pair();
+
+        await e.Advisor(Reply(EmptyAdvice)).AskAsync(e.Game, GoalStep.Balanced, CancellationToken.None);
+
+        Assert.Null(o.Chat);
+    }
+
+    [Fact]
+    public void Restore_ClearsChat()
+    {
+        using var e = new Env();
+        File.WriteAllText(e.Ini + ".orig", "[S]\r\nA=0\r\n");
+        var o = e.Lib.For(e.Game);
+        o.Chat = Pair();
+
+        e.Advisor().Restore(e.Game);
+
+        Assert.Null(o.Chat);
+    }
+
+    [Fact]
+    public async Task LocateAsync_NewPath_ClearsChat_SamePath_Keeps()
+    {
+        using var e = new Env();
+        var o = e.Lib.For(e.Game);
+        o.Chat = Pair();
+
+        await e.Advisor(Locate(e.Ini, "ini")).LocateAsync(e.Game, CancellationToken.None);
+        Assert.NotNull(o.Chat);
+
+        await e.Advisor(Locate(@"<InstallDir>\other.ini", "ini")).LocateAsync(e.Game, CancellationToken.None);
+        Assert.Null(o.Chat);
     }
 
     [Fact]

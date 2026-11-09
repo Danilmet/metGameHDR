@@ -35,7 +35,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
             }
         }
         var o = lib.For(game);
-        if (!string.Equals(o.ConfigPath, path, StringComparison.OrdinalIgnoreCase)) o.Snapshot = null;
+        if (!string.Equals(o.ConfigPath, path, StringComparison.OrdinalIgnoreCase)) { o.Snapshot = null; o.Chat = null; }
         o.ConfigPath = path;
         o.ConfigNote = note ?? "";
         lib.Save(libraryPath);
@@ -48,18 +48,11 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
     public async Task<Advice> AskAsync(Game game, GoalStep goal, CancellationToken ct)
     {
         var client = Client();
-        var hw = hardware();
-        var effective = EffectiveGame(lib, game);
-        var path = LocatedPath(lib, roots, game);
-        var fresh = IsSnapshotFresh(lib, roots, game);
-        var stamp = path == null ? default : File.GetLastWriteTimeUtc(path); // before the request: a file rewritten meanwhile stays stale
-        var current = fresh ? lib.For(game).Snapshot!.Settings.Where(r => r.Key == null || !ConfigFinder.IsSecretKey(r.Key)).ToList() : null;
-        var request = ReadConfig(path) is { } c
-            ? new AdviceRequest(effective, hw, goal, c.Path, c.Format, c.Text, c.Truncated, current)
-            : new AdviceRequest(effective, hw, goal, null, null, null, false);
+        var (request, path, fresh, stamp) = Prepare(game, goal);
         var advice = new Advice(await client.AskAsync(request, ct), DateTime.UtcNow);
         var o = lib.For(game);
         o.Advice = advice;
+        o.Chat = null;
         var keyed = advice.Result.Settings.Where(s => s.Key != null).ToList();
         if (path != null && keyed.Count > 0 && TryFileText(path) is { } text)
         {
@@ -73,6 +66,41 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
             }
             o.Snapshot = new ConfigSnapshot(UnrealScalability.Merge(rows, text), DateTime.UtcNow, stamp);
         }
+        lib.Save(libraryPath);
+        return advice;
+    }
+
+    (AdviceRequest Request, string? Path, bool Fresh, DateTime Stamp) Prepare(Game game, GoalStep goal)
+    {
+        var hw = hardware();
+        var effective = EffectiveGame(lib, game);
+        var path = LocatedPath(lib, roots, game);
+        var fresh = IsSnapshotFresh(lib, roots, game);
+        var stamp = path == null ? default : File.GetLastWriteTimeUtc(path); // before the request: a file rewritten meanwhile stays stale
+        var current = fresh ? lib.For(game).Snapshot!.Settings.Where(r => r.Key == null || !ConfigFinder.IsSecretKey(r.Key)).ToList() : null;
+        var request = ReadConfig(path) is { } c
+            ? new AdviceRequest(effective, hw, goal, c.Path, c.Format, c.Text, c.Truncated, current)
+            : new AdviceRequest(effective, hw, goal, null, null, null, false);
+        return (request, path, fresh, stamp);
+    }
+
+    // The turns are appended together and only after success, so Chat always holds user/assistant pairs.
+    public async Task<Advice> AdjustAsync(Game game, GoalStep goal, string text, IReadOnlyList<ChatAttachment> attachments, CancellationToken ct)
+    {
+        var client = Client();
+        var o = lib.For(game);
+        if (o.Advice is not { } previous) throw new AdviceException("Сначала подберите настройки");
+        if (string.IsNullOrWhiteSpace(text) && attachments.Count == 0) throw new AdviceException("Пустое сообщение");
+        var history = o.Chat ?? [];
+        var result = await client.AdjustAsync(new AdjustRequest(Prepare(game, goal).Request, previous.Result, history, text, attachments), ct);
+
+        var settings = result.Settings.Count > 0 ? result.Settings : previous.Result.Settings;
+        var advice = new Advice(new AdviceResult(result.Summary, settings, result.Notes), DateTime.UtcNow);
+        var reply = string.IsNullOrWhiteSpace(result.Reply) ? "(без комментария)" : result.Reply;
+        o.Advice = advice;
+        o.Chat = [.. history,
+            new ChatTurn(ChatRole.User, text, attachments.Count > 0 ? attachments.Select(a => a.Name).ToList() : null, advice.At),
+            new ChatTurn(ChatRole.Assistant, reply, null, advice.At)];
         lib.Save(libraryPath);
         return advice;
     }
@@ -201,6 +229,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
         var text = File.ReadAllText(path);
         if (lib.Overrides.TryGetValue(game.InstallDir, out var o))
         {
+            o.Chat = null;
             if (o.Advice is { } advice)
             {
                 var settings = advice.Result.Settings.Select(x => x.Key != null ? x with { Current = IniEditor.CurrentValue(text, x.Section, x.Key) } : x).ToList();
