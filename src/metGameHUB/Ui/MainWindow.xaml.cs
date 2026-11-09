@@ -231,6 +231,7 @@ public partial class MainWindow : Window
         try { row.Hltb = await hltb.FetchAsync(name, DateTime.Now); }
         catch (Exception ex) { Log.Write($"HLTB {name}: {ex.Message}"); }
         finally { row.HltbLoading = false; }
+        if (lib.SearchNameOf(row.Game) != name) LoadHltb(row);
     }
 
     void SearchName_LostFocus(object sender, RoutedEventArgs e)
@@ -240,8 +241,9 @@ public partial class MainWindow : Window
 
     void Hltb_Click(object sender, RoutedEventArgs e)
     {
-        if (GamePage.DataContext is GameRow { Hltb.Id: int id })
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(HltbClient.GameUrl(id)) { UseShellExecute = true });
+        if (GamePage.DataContext is not GameRow { Hltb.Id: int id }) return;
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(HltbClient.GameUrl(id)) { UseShellExecute = true }); }
+        catch (Exception ex) { Log.Write($"HLTB open {id}: {ex.Message}"); }
     }
 
     void CloseGamePage_Click(object sender, RoutedEventArgs e)
