@@ -6,7 +6,7 @@ using MetGameHUB.Scan;
 
 namespace MetGameHUB.Advice;
 
-public sealed record LocateRequest(Game Game, IReadOnlyList<string> InstallRootEntries, IReadOnlyList<string> CandidatePaths, string? UnrealProject);
+public sealed record LocateRequest(Game Game, IReadOnlyList<string> InstallRootEntries, IReadOnlyList<string> CandidatePaths, string? UnrealProject, string? UnityKey);
 
 public sealed record AdviceRequest(Game Game, HardwareInfo Hardware, GoalStep Goal, string? ConfigPath, string? ConfigFormat, string? ConfigText, bool Truncated, List<CurrentSetting>? Current = null);
 
@@ -39,12 +39,12 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
     const string LocatePrompt = """
         Ты знаешь, где ПК-игры хранят файлы графических настроек. Тебе дают игру (имя, папку установки, exe), список файлов и папок первого уровня в папке установки, найденные приложением файлы-кандидаты и, если это Unreal Engine, имя проекта.
         Правила:
-        1. Назови ОДИН файл, в котором игра хранит графические настройки меню (разрешение, качество, апскейлер). Путь — абсолютный для Windows, допускаются переменные %LocalAppData%, %AppData%, %UserProfile%, %ProgramData% и плейсхолдер <InstallDir>. Если нужный файл есть среди кандидатов — верни его путь как есть.
-        2. format: "ini" для INI/CFG с парами ключ=значение или ключ значение; "json" для JSON; "none", если игра хранит настройки в реестре, в бинарном файле или в облаке — тогда path: null.
+        1. Назови ОДИН файл или ключ реестра, в котором игра хранит графические настройки меню (разрешение, качество, апскейлер). Путь — абсолютный для Windows, допускаются переменные %LocalAppData%, %AppData%, %UserProfile%, %ProgramData% и плейсхолдер <InstallDir>. Если нужный файл есть среди кандидатов — верни его путь как есть.
+        2. format: "ini" для INI/CFG с парами ключ=значение или ключ значение; "json" для JSON; "registry", если игра на Unity хранит настройки в PlayerPrefs — тогда path это ключ реестра HKCU\Software\<Компания>\<Продукт> (если прислан unityPlayerPrefs и графика игры лежит в PlayerPrefs, верни его как есть); "none", если настройки в бинарном файле или в облаке — тогда path: null.
         3. Если файл обычно появляется только после первого запуска игры, всё равно назови путь.
         4. note — одна фраза по-русски, что это за файл или почему его нет.
         Отвечай только одним JSON-объектом по схеме, без пояснений и без markdown-ограждений:
-        {"type":"object","additionalProperties":false,"required":["path","format","note"],"properties":{"path":{"type":["string","null"]},"format":{"type":"string","enum":["ini","json","none"]},"note":{"type":["string","null"]}}}
+        {"type":"object","additionalProperties":false,"required":["path","format","note"],"properties":{"path":{"type":["string","null"]},"format":{"type":"string","enum":["ini","json","registry","none"]},"note":{"type":["string","null"]}}}
         """;
 
     const string AskPrompt = """
@@ -54,7 +54,7 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
         2. goal.mode задаёт, чем жертвовать: max_quality — максимум картинки, кадры как получатся, но не ниже goal.fps; quality — стабильно держать goal.fps, весь остальной запас отдать картинке; balanced — держать goal.fps в типичных сценах, жертвовать самым дорогим при малой разнице в картинке; smooth — держать goal.fps с запасом и по минимальным кадрам (1% low), картинка во вторую очередь; max_fps — как можно больше кадров и минимальная задержка, картинка вторична (goal.fps = null). Для quality, balanced и smooth цель по кадрам — для типичных сцен, с запасом ~10%.
         3. settings — один список строк по пунктам графического меню игры. name и value-поля пиши так, как они видны в меню игры (на языке игры, если неизвестен — по-английски). Разрешение и апскейлер указывай под монитор пользователя. Если прислан current — это уже разобранные пункты файла: бери из него name и current для этих пунктов.
         4. Для каждого пункта: current — текущее значение, разобранное из присланного файла и переведённое в подпись меню (например ключ 3 → "High"); если файла нет или пункт в нём не хранится — null. recommended — рекомендуемая подпись меню.
-        5. Если пункт хранится в присланном файле, заполни section (секция INI или null), key (точное имя ключа из файла; для INI допустим документированный для движка ключ, которого в файле нет) и value — сырое значение для записи в файл в том виде, в каком оно там пишется (число, true/false, строка без лишних кавычек). Иначе section/key/value — null. Ключи не выдумывай.
+        5. Если пункт хранится в присланном файле, заполни section (секция INI или null), key (точное имя ключа из файла; для INI допустим документированный для движка ключ, которого в файле нет) и value — сырое значение для записи в файл в том виде, в каком оно там пишется (число, true/false, строка без лишних кавычек). Иначе section/key/value — null. Ключи не выдумывай. Для format "registry": section всегда null, key — точное имя значения из выгрузки вместе с хвостом _h…, value — число или строка в том виде, как в выгрузке.
         6. summary, reason и notes — строго по-русски. summary — 2–3 предложения о том, что упирается в железо и чем пожертвовали. notes — предупреждения (например, что часть настроек надо выставить руками), иначе null.
         Отвечай только одним JSON-объектом по схеме, без пояснений и без markdown-ограждений:
         {"type":"object","additionalProperties":false,"required":["summary","settings","notes"],"properties":{"summary":{"type":"string"},"settings":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["name","current","recommended","section","key","value","reason"],"properties":{"name":{"type":"string"},"current":{"type":["string","null"]},"recommended":{"type":"string"},"section":{"type":["string","null"]},"key":{"type":["string","null"]},"value":{"type":["string","null"]},"reason":{"type":"string"}}}},"notes":{"type":["string","null"]}}}
@@ -67,7 +67,7 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
         2. goal.mode задаёт, чем жертвовать: max_quality — максимум картинки, кадры как получатся, но не ниже goal.fps; quality — стабильно держать goal.fps, весь остальной запас отдать картинке; balanced — держать goal.fps в типичных сценах, жертвовать самым дорогим при малой разнице в картинке; smooth — держать goal.fps с запасом и по минимальным кадрам (1% low), картинка во вторую очередь; max_fps — как можно больше кадров и минимальная задержка, картинка вторична (goal.fps = null). Для quality, balanced и smooth цель по кадрам — для типичных сцен, с запасом ~10%.
         3. settings — один список строк по пунктам графического меню игры. name и value-поля пиши так, как они видны в меню игры (на языке игры, если неизвестен — по-английски). Разрешение и апскейлер указывай под монитор пользователя. Если прислан current — это уже разобранные пункты файла: бери из него name и current для этих пунктов.
         4. Для каждого пункта: current — текущее значение, разобранное из присланного файла и переведённое в подпись меню (например ключ 3 → "High"); если файла нет или пункт в нём не хранится — null. recommended — рекомендуемая подпись меню.
-        5. Если пункт хранится в присланном файле, заполни section (секция INI или null), key (точное имя ключа из файла; для INI допустим документированный для движка ключ, которого в файле нет) и value — сырое значение для записи в файл в том виде, в каком оно там пишется (число, true/false, строка без лишних кавычек). Иначе section/key/value — null. Ключи не выдумывай.
+        5. Если пункт хранится в присланном файле, заполни section (секция INI или null), key (точное имя ключа из файла; для INI допустим документированный для движка ключ, которого в файле нет) и value — сырое значение для записи в файл в том виде, в каком оно там пишется (число, true/false, строка без лишних кавычек). Иначе section/key/value — null. Ключи не выдумывай. Для format "registry": section всегда null, key — точное имя значения из выгрузки вместе с хвостом _h…, value — число или строка в том виде, как в выгрузке.
         6. Исправь совет по последней просьбе: меняй только то, о чём просят или что из этого прямо следует, остальные пункты верни без изменений.
         7. Если прислан скриншот или файл — опирайся на него (меню игры, оверлей с FPS, лог).
         8. reply — 1–3 предложения по-русски: что поменял и почему, или почему не стал менять.
@@ -81,7 +81,7 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
         Правила:
         1. settings — пункты графического меню игры, которые хранятся в этом файле, в порядке, в каком они обычно идут в меню. name — подпись пункта так, как она видна в меню игры (на языке игры, если неизвестен — по-английски).
         2. current — текущее значение, переведённое в подпись меню (например ключ 3 → "High"); если значение не удаётся понять — сырое значение из файла.
-        3. section — секция INI или null, key — точное имя ключа из файла. Ключи не выдумывай; пункты, которых нет в файле, не включай.
+        3. section — секция INI или null, key — точное имя ключа из файла. Ключи не выдумывай; пункты, которых нет в файле, не включай. Для format "registry": section всегда null, key — точное имя значения из выгрузки вместе с хвостом _h….
         4. Служебные ключи (версии, идентификаторы, пути, статистику) не включай.
         Отвечай только одним JSON-объектом по схеме, без пояснений и без markdown-ограждений:
         {"type":"object","additionalProperties":false,"required":["settings"],"properties":{"settings":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["name","current","section","key"],"properties":{"name":{"type":"string"},"current":{"type":["string","null"]},"section":{"type":["string","null"]},"key":{"type":["string","null"]}}}}}}
@@ -147,6 +147,7 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
         installRootEntries = r.InstallRootEntries,
         candidates = r.CandidatePaths,
         unrealProject = r.UnrealProject,
+        unityPlayerPrefs = r.UnityKey,
     }));
 
     static Dictionary<string, object?> AskContext(AdviceRequest r) => new()

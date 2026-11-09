@@ -116,6 +116,20 @@ public static class ConfigFinder
         .Where(p => Directory.Exists(Path.Combine(p, "Binaries")) && Directory.Exists(Path.Combine(p, "Content")))
         .Select(p => Path.GetFileName(p)).FirstOrDefault();
 
+    public static string? UnityPlayerPrefsKey(string installDir)
+    {
+        try
+        {
+            var info = SafeDirs(installDir).Order(StringComparer.OrdinalIgnoreCase)
+                .Where(d => Path.GetFileName(d).EndsWith("_Data", StringComparison.OrdinalIgnoreCase))
+                .Select(d => Path.Combine(d, "app.info")).FirstOrDefault(File.Exists);
+            if (info == null) return null;
+            var lines = File.ReadAllLines(info).Select(l => l.Trim()).Where(l => l.Length > 0).Take(2).ToList();
+            return lines.Count == 2 ? $@"HKCU\Software\{lines[0]}\{lines[1]}" : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException) { return null; }
+    }
+
     private static IEnumerable<string> UnrealSettings(string projectDir)
     {
         foreach (var platform in SafeDirs(Path.Combine(projectDir, "Saved", "Config")))

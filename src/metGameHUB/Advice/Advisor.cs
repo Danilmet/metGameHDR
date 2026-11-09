@@ -21,7 +21,8 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<Cl
         var client = Client();
         var effective = EffectiveGame(lib, game);
         var location = await client.LocateAsync(new LocateRequest(effective, RootEntries(effective.InstallDir),
-            ConfigFinder.Find(effective, roots).Select(c => c.Path).ToList(), ConfigFinder.UnrealProject(effective.InstallDir)), ct);
+            ConfigFinder.Find(effective, roots).Select(c => c.Path).ToList(), ConfigFinder.UnrealProject(effective.InstallDir),
+            ConfigFinder.UnityPlayerPrefsKey(effective.InstallDir)), ct);
 
         var note = location.Note;
         string? path = null;

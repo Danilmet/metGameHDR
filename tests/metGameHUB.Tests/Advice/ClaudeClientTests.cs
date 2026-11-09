@@ -67,7 +67,7 @@ public class ClaudeClientTests
     }
 
     static LocateRequest LocateReq() => new(
-        new Game("G", @"C:\g", GameSource.Steam, "g.exe"), ["Binaries\\", "g.exe"], [@"C:\g\a.ini"], "ProjectX");
+        new Game("G", @"C:\g", GameSource.Steam, "g.exe"), ["Binaries\\", "g.exe"], [@"C:\g\a.ini"], "ProjectX", null);
 
     [Fact]
     public async Task LocateAsync_SendsGameListingAndCandidates_ParsesLocation()
@@ -89,6 +89,25 @@ public class ClaudeClientTests
         Assert.Equal("Binaries\\", u.GetProperty("installRootEntries")[0].GetString());
         Assert.Equal(@"C:\g\a.ini", u.GetProperty("candidates")[0].GetString());
         Assert.Equal("ProjectX", u.GetProperty("unrealProject").GetString());
+    }
+
+    [Fact]
+    public void BuildLocateBody_HasUnityPlayerPrefs()
+    {
+        var body = ClaudeClient.BuildLocateBody(LocateReq() with { UnityKey = @"HKCU\Software\Co\Game" }, "m");
+        Assert.Equal(@"HKCU\Software\Co\Game", UserJson(body).GetProperty("unityPlayerPrefs").GetString());
+        using var doc = JsonDocument.Parse(body);
+        Assert.Contains("\"registry\"", doc.RootElement.GetProperty("system").GetString());
+    }
+
+    [Fact]
+    public async Task LocateAsync_RegistryFormat_Parsed()
+    {
+        var fake = new Fake(HttpStatusCode.OK, Response(text: """{"path":"HKCU\\Software\\Co\\Game","format":"registry","note":"n"}"""));
+        var loc = await new ClaudeClient(new HttpClient(fake), "key").LocateAsync(LocateReq(), CancellationToken.None);
+
+        Assert.Equal("registry", loc.Format);
+        Assert.Equal(@"HKCU\Software\Co\Game", loc.Path);
     }
 
     [Fact]

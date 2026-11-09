@@ -248,4 +248,15 @@ public class ConfigFinderTests
             Assert.Equal(ConfigFinder.MaxRootFileBytes, c.Text.Length);
         });
     }
+
+    [Fact]
+    public void UnityPlayerPrefsKey_FromAppInfo() => WithTemp(dir =>
+    {
+        Directory.CreateDirectory(Path.Combine(dir, "Game_Data"));
+        File.WriteAllText(Path.Combine(dir, "Game_Data", "app.info"), "Studio Co\nMy Game\n");
+        Assert.Equal(@"HKCU\Software\Studio Co\My Game", ConfigFinder.UnityPlayerPrefsKey(dir));
+    });
+
+    [Fact]
+    public void UnityPlayerPrefsKey_NoAppInfo_Null() => WithTemp(dir => Assert.Null(ConfigFinder.UnityPlayerPrefsKey(dir)));
 }
