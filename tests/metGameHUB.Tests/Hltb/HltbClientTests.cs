@@ -117,6 +117,17 @@ public class HltbClientTests
         await Assert.ThrowsAnyAsync<Exception>(() => new HltbClient(new HttpClient(always)).FetchAsync("A", Now));
     }
 
+    [Fact] public async Task FetchAsync_ErrorBodyDropsToken()
+    {
+        var calls = 0;
+        var fake = new Fake(_ => Ok(++calls == 1 ? """{"error":"Session expired or invalid fingerprint"}""" : CyberpunkJson));
+        var client = new HltbClient(new HttpClient(fake));
+        await Assert.ThrowsAnyAsync<Exception>(() => client.FetchAsync("Cyberpunk 2077", Now));
+        var info = await client.FetchAsync("Cyberpunk 2077", Now);
+        Assert.Equal(2, fake.Inits);
+        Assert.Equal(2127, info.Id);
+    }
+
     [Fact] public async Task FetchAsync_NoMatchReturnsNullId()
     {
         var fake = new Fake(_ => Ok("""{"data":[]}"""));

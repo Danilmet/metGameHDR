@@ -22,25 +22,28 @@ public sealed class HltbClient(HttpClient http)
 
     public async Task<HltbInfo> FetchAsync(string name, DateTime now, CancellationToken ct = default)
     {
-        string body;
-        try { body = await SearchAsync(name, ct); }
-        catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.Forbidden)
-        {
-            token = null;
-            body = await SearchAsync(name, ct);
-        }
-        var hit = Pick(Parse(body), name);
+        List<HltbHit> hits;
+        try { hits = await SearchAsync(name, ct); }
+        catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.Forbidden) { hits = await SearchAsync(name, ct); }
+        var hit = Pick(hits, name);
         return hit is null
             ? new HltbInfo(null, null, 0, 0, 0, name, now)
             : new HltbInfo(hit.Id, hit.Name, hit.Main, hit.Plus, hit.Full, name, now);
     }
 
-    async Task<string> SearchAsync(string name, CancellationToken ct)
+    // Any failure drops the cached token so a dead one cannot stick until restart.
+    async Task<List<HltbHit>> SearchAsync(string name, CancellationToken ct)
     {
-        token ??= await InitAsync(ct);
+        try { return Parse(await PostAsync(name, ct)); }
+        catch { token = null; throw; }
+    }
+
+    async Task<string> PostAsync(string name, CancellationToken ct)
+    {
+        var t = token ??= await InitAsync(ct);
         using var req = new HttpRequestMessage(HttpMethod.Post, Site + "api/search/site");
         Headers(req);
-        req.Headers.Add("x-auth-token", token);
+        req.Headers.Add("x-auth-token", t);
         req.Content = new StringContent(SearchBody(name), Encoding.UTF8, "application/json");
         using var res = await http.SendAsync(req, ct);
         res.EnsureSuccessStatusCode();
