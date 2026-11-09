@@ -67,7 +67,7 @@ public class AdvisorTests
 
         public FinderRoots Roots => new(Path.Combine(Dir, "empty"), Path.Combine(Dir, "empty"), Path.Combine(Dir, "empty"));
 
-        public Advisor Advisor(string json = "{}") => new(() => "key", () => null, () => null, Lib, LibPath,
+        public Advisor Advisor(string json = "{}") => new(() => "key", () => null, () => new ClaudeChoice(null), Lib, LibPath,
             () => new HardwareInfo("GPU", 8, "CPU", 16, 1920, 1080, 60, "Win"),
             Roots, _ => Running, new HttpClient(Handler = new Fake(json)));
 

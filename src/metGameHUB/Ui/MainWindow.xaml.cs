@@ -40,7 +40,7 @@ public partial class MainWindow : Window
         this.settings = settings;
         this.lib = lib;
         this.onLibraryChanged = onLibraryChanged;
-        advisor = new Advisor(() => settings.ClaudeApiKey, () => settings.ClaudeBaseUrl, () => settings.ClaudeModel, lib, AppPaths.LibraryFile, Hardware.Detect, roots, IsRunning, ClaudeHttp);
+        advisor = new Advisor(() => settings.ClaudeApiKey, () => settings.ClaudeBaseUrl, () => new ClaudeChoice(settings.ClaudeModel, settings.ClaudeLocate, settings.ClaudeRead, settings.ClaudeAsk), lib, AppPaths.LibraryFile, Hardware.Detect, roots, IsRunning, ClaudeHttp);
         InitializeComponent();
 
         GamesGrid.ItemsSource = rows;
@@ -86,6 +86,9 @@ public partial class MainWindow : Window
             settings.ClaudeModel = ClaudeModelBox.Text.Trim() is { Length: > 0 } model ? model : null;
             SaveSettings();
         }));
+        BindClaudeTask(LocateModelBox, LocateEffortBox, settings.ClaudeLocate);
+        BindClaudeTask(ReadModelBox, ReadEffortBox, settings.ClaudeRead);
+        BindClaudeTask(AskModelBox, AskEffortBox, settings.ClaudeAsk);
         DefaultTargetSlider.ValueChanged += (_, e) =>
         {
             settings.DefaultTarget = (GoalStep)(int)e.NewValue;
@@ -663,6 +666,26 @@ public partial class MainWindow : Window
             UpdateButtons();
             UpdateButton.Content = "Обновить";
         }
+    }
+
+    static readonly string[] Efforts = ["по умолчанию", "low", "medium", "high", "xhigh", "max"];
+
+    void BindClaudeTask(ComboBox modelBox, ComboBox effortBox, ClaudeTask task)
+    {
+        modelBox.ItemsSource = ClaudeModelBox.Items.Cast<ComboBoxItem>().Select(i => (string)i.Content).ToList();
+        modelBox.Text = task.Model ?? "";
+        modelBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, (TextChangedEventHandler)((_, _) =>
+        {
+            task.Model = modelBox.Text.Trim() is { Length: > 0 } model ? model : null;
+            SaveSettings();
+        }));
+        effortBox.ItemsSource = Efforts;
+        effortBox.SelectedIndex = Math.Max(0, Array.IndexOf(Efforts, task.Effort));
+        effortBox.SelectionChanged += (_, _) =>
+        {
+            task.Effort = effortBox.SelectedIndex > 0 ? Efforts[effortBox.SelectedIndex] : null;
+            SaveSettings();
+        };
     }
 
     void SaveSettings()

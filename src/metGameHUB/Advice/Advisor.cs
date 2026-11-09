@@ -6,14 +6,14 @@ namespace MetGameHUB.Advice;
 
 public enum ApplyOutcome { Applied, GameRunning, NoConfig, FileMissing, NotIni, BadEdit }
 
-public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<string?> model, Library lib, string libraryPath, Func<HardwareInfo> hardware,
+public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<ClaudeChoice> claude, Library lib, string libraryPath, Func<HardwareInfo> hardware,
     FinderRoots roots, Func<Game, bool> isRunning, HttpClient http)
 {
     const int MaxRootEntries = 200, MaxConfigChars = 32 * 1024;
 
     ClaudeClient Client() =>
         apiKey() is { } key && !string.IsNullOrWhiteSpace(key)
-            ? new ClaudeClient(http, key, baseUrl(), model())
+            ? new ClaudeClient(http, key, baseUrl(), claude())
             : throw new AdviceException("Не задан ключ API");
 
     public async Task<ConfigStatus> LocateAsync(Game game, CancellationToken ct)

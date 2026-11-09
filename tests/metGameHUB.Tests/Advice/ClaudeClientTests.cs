@@ -163,10 +163,52 @@ public class ClaudeClientTests
     public async Task AskAsync_CustomModel_IsSentInBody()
     {
         var fake = new Fake(HttpStatusCode.OK, Response());
-        await new ClaudeClient(new HttpClient(fake), "key", null, " claude-sonnet-5-5 ").AskAsync(Request(), CancellationToken.None);
+        await new ClaudeClient(new HttpClient(fake), "key", null, new(" claude-sonnet-5-5 ")).AskAsync(Request(), CancellationToken.None);
 
         using var doc = JsonDocument.Parse(fake.Body!);
         Assert.Equal("claude-sonnet-5-5", doc.RootElement.GetProperty("model").GetString());
+    }
+
+    static (string? Model, string? Effort) ModelAndEffort(string body)
+    {
+        using var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+        return (root.GetProperty("model").GetString(), root.GetProperty("output_config").GetProperty("effort").GetString());
+    }
+
+    [Fact]
+    public async Task AskAsync_TaskModelAndEffort_OverrideCommon()
+    {
+        var fake = new Fake(HttpStatusCode.OK, Response());
+        var choice = new ClaudeChoice("claude-sonnet-5-5", Ask: new() { Model = " claude-haiku-5-5 ", Effort = "high" });
+        await new ClaudeClient(new HttpClient(fake), "key", null, choice).AskAsync(Request(), CancellationToken.None);
+
+        Assert.Equal(("claude-haiku-5-5", "high"), ModelAndEffort(fake.Body!));
+    }
+
+    [Fact]
+    public async Task LocateAsync_TaskWithoutModel_UsesCommonModelAndTaskEffort()
+    {
+        var fake = new Fake(HttpStatusCode.OK, Response(text: LocationJson));
+        var choice = new ClaudeChoice("claude-sonnet-5-5", Locate: new() { Effort = "low" }, Ask: new() { Model = "x", Effort = "max" });
+        await new ClaudeClient(new HttpClient(fake), "key", null, choice).LocateAsync(LocateReq(), CancellationToken.None);
+
+        Assert.Equal(("claude-sonnet-5-5", "low"), ModelAndEffort(fake.Body!));
+    }
+
+    [Fact]
+    public async Task BlankTaskSettings_KeepBuiltInModelAndEfforts()
+    {
+        var fake = new Fake(HttpStatusCode.OK, Response(text: LocationJson));
+        var blank = new ClaudeTask { Model = " ", Effort = "" };
+        var client = new ClaudeClient(new HttpClient(fake), "key", null, new ClaudeChoice(null, blank, blank, blank));
+
+        await client.LocateAsync(LocateReq(), CancellationToken.None);
+        Assert.Equal(("claude-opus-5-5", "medium"), ModelAndEffort(fake.Body!));
+
+        var read = new Fake(HttpStatusCode.OK, Response(text: """{"settings":[]}"""));
+        await new ClaudeClient(new HttpClient(read), "key", null, new ClaudeChoice(null, blank, blank, blank)).ReadAsync(ReadReq(), CancellationToken.None);
+        Assert.Equal(("claude-opus-5-5", "low"), ModelAndEffort(read.Body!));
     }
 
     [Fact]

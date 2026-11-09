@@ -406,6 +406,29 @@
                             <ComboBoxItem Content="claude-fable-5-1"/>
                         </ComboBox>
                         <TextBlock Text="Пусто — claude-opus-5-5; дешевле — claude-sonnet-5-5" Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource TextSecondary}"/>
+                        <TextBlock Text="По задачам: модель и effort" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
+                        <Grid HorizontalAlignment="Left">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Поиск конфига" VerticalAlignment="Center" Margin="0,0,12,4"/>
+                            <ComboBox x:Name="LocateModelBox" Grid.Column="1" IsEditable="True" Width="200" Margin="0,0,8,4"/>
+                            <ComboBox x:Name="LocateEffortBox" Grid.Column="2" Width="120" Margin="0,0,0,4"/>
+                            <TextBlock Grid.Row="1" Text="Разбор конфига" VerticalAlignment="Center" Margin="0,0,12,4"/>
+                            <ComboBox x:Name="ReadModelBox" Grid.Row="1" Grid.Column="1" IsEditable="True" Width="200" Margin="0,0,8,4"/>
+                            <ComboBox x:Name="ReadEffortBox" Grid.Row="1" Grid.Column="2" Width="120" Margin="0,0,0,4"/>
+                            <TextBlock Grid.Row="2" Text="Подбор настроек" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <ComboBox x:Name="AskModelBox" Grid.Row="2" Grid.Column="1" IsEditable="True" Width="200" Margin="0,0,8,0"/>
+                            <ComboBox x:Name="AskEffortBox" Grid.Row="2" Grid.Column="2" Width="120"/>
+                        </Grid>
+                        <TextBlock Text="Пусто — общая модель; effort по умолчанию: поиск и подбор medium, разбор low" Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource TextSecondary}"/>
                         <TextBlock Text="Цель по умолчанию" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="Качество" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>

@@ -16,9 +16,19 @@ public sealed record ReadResult(List<CurrentSetting> Settings);
 
 public sealed class AdviceException(string message) : Exception(message);
 
-public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl = null, string? model = null)
+public sealed class ClaudeTask
+{
+    public string? Model { get; set; }
+    public string? Effort { get; set; }
+}
+
+/// <summary>Общая модель и переопределения по задачам; пустое значение — уровнем выше (задача → общая → встроенная).</summary>
+public sealed record ClaudeChoice(string? Model, ClaudeTask? Locate = null, ClaudeTask? Read = null, ClaudeTask? Ask = null);
+
+public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl = null, ClaudeChoice? choice = null)
 {
     public const string Model = "claude-opus-5-5";
+    const string LocateEffort = "medium", AskEffort = "medium", ReadEffort = "low";
     const string DefaultBaseUrl = "https://api.anthropic.com";
 
     const string LocatePrompt = """
@@ -63,18 +73,22 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
     };
 
     public async Task<ConfigLocation> LocateAsync(LocateRequest request, CancellationToken ct) =>
-        Parse<ConfigLocation>(await Post(BuildLocateBody(request, ModelName()), ct));
+        Parse<ConfigLocation>(await Post(BuildLocateBody(request, ModelFor(choice?.Locate), EffortFor(choice?.Locate, LocateEffort)), ct));
 
     public async Task<AdviceResult> AskAsync(AdviceRequest request, CancellationToken ct) =>
-        Parse<AdviceResult>(await Post(BuildAskBody(request, ModelName()), ct));
+        Parse<AdviceResult>(await Post(BuildAskBody(request, ModelFor(choice?.Ask), EffortFor(choice?.Ask, AskEffort)), ct));
 
     public async Task<ReadResult> ReadAsync(ReadRequest request, CancellationToken ct)
     {
-        var result = Parse<ReadResult>(await Post(BuildReadBody(request, ModelName()), ct));
+        var result = Parse<ReadResult>(await Post(BuildReadBody(request, ModelFor(choice?.Read), EffortFor(choice?.Read, ReadEffort)), ct));
         return result.Settings == null ? new ReadResult([]) : result;
     }
 
-    string ModelName() => string.IsNullOrWhiteSpace(model) ? Model : model.Trim();
+    static string? Trimmed(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    string ModelFor(ClaudeTask? task) => Trimmed(task?.Model) ?? Trimmed(choice?.Model) ?? Model;
+
+    static string EffortFor(ClaudeTask? task, string builtIn) => Trimmed(task?.Effort) ?? builtIn;
 
     async Task<string> Post(string body, CancellationToken ct)
     {
@@ -101,7 +115,7 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
 
     static object GameInfo(Game g) => new { name = g.Name, source = g.Source, installDir = g.InstallDir, exe = g.MainExe };
 
-    internal static string BuildLocateBody(LocateRequest r, string model) => Body(model, 1000, 2, "medium", LocatePrompt, new
+    internal static string BuildLocateBody(LocateRequest r, string model, string effort = LocateEffort) => Body(model, 1000, 2, effort, LocatePrompt, new
     {
         game = GameInfo(r.Game),
         installRootEntries = r.InstallRootEntries,
@@ -109,7 +123,7 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
         unrealProject = r.UnrealProject,
     });
 
-    internal static string BuildAskBody(AdviceRequest r, string model) => Body(model, 8000, 3, "medium", AskPrompt, new
+    internal static string BuildAskBody(AdviceRequest r, string model, string effort = AskEffort) => Body(model, 8000, 3, effort, AskPrompt, new
     {
         game = GameInfo(r.Game),
         hardware = r.Hardware,
@@ -118,7 +132,7 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
         current = r.Current,
     });
 
-    internal static string BuildReadBody(ReadRequest r, string model) => Body(model, 4000, 0, "low", ReadPrompt, new
+    internal static string BuildReadBody(ReadRequest r, string model, string effort = ReadEffort) => Body(model, 4000, 0, effort, ReadPrompt, new
     {
         game = GameInfo(r.Game),
         config = new { path = r.ConfigPath, format = r.ConfigFormat, text = r.ConfigText, truncated = r.Truncated },

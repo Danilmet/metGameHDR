@@ -12,6 +12,25 @@ public class SettingsTests
     }
 
     [Fact]
+    public void Load_FileWithoutTaskSettings_KeepsCommonModelAndEmptyTasks()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        File.WriteAllText(path, """{ "ClaudeModel": "claude-sonnet-5-5" }""");
+        try
+        {
+            var s = Settings.Load(path);
+            Assert.Equal("claude-sonnet-5-5", s.ClaudeModel);
+            Assert.Null(s.ClaudeLocate.Model);
+            Assert.Null(s.ClaudeRead.Effort);
+            Assert.Null(s.ClaudeAsk.Model);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void Load_CorruptFile_ReturnsDefaultsAndSetsFileAside()
     {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
@@ -36,8 +55,11 @@ public class SettingsTests
         try
         {
             var s = new Settings { FolderRoots = ["C:\\Games"], SteamGridDbKey = "k", Autostart = true };
+            s.ClaudeAsk.Effort = "high";
             s.Save(path);
             var back = Settings.Load(path);
+            Assert.Equal("high", back.ClaudeAsk.Effort);
+            Assert.Null(back.ClaudeLocate.Model);
             Assert.Equal(["C:\\Games"], back.FolderRoots);
             Assert.Equal("k", back.SteamGridDbKey);
             Assert.True(back.Autostart);
