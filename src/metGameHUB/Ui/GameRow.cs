@@ -18,7 +18,8 @@ public sealed class GameRow : INotifyPropertyChanged
     ImageSource? cover;
     ImageSource? icon;
     readonly FinderRoots roots;
-    readonly Func<GraphicsGoal> defaultGoal;
+    readonly Func<GoalStep> defaultTarget;
+    readonly Func<int> hz;
     readonly Func<bool> hasKey;
     Advice.Advice? latest;
     bool canApply;
@@ -31,14 +32,15 @@ public sealed class GameRow : INotifyPropertyChanged
     IReadOnlyList<AdviceRowVm> adviceRows = [];
 
     public GameRow(Game game, Library lib, SteamStatus? steamStatus, Action onHdrChanged,
-        FinderRoots roots, Func<GraphicsGoal> defaultGoal, Func<bool> hasKey)
+        FinderRoots roots, Func<GoalStep> defaultTarget, Func<int> hz, Func<bool> hasKey)
     {
         Game = game;
         this.lib = lib;
         this.steamStatus = steamStatus;
         this.onHdrChanged = onHdrChanged;
         this.roots = roots;
-        this.defaultGoal = defaultGoal;
+        this.defaultTarget = defaultTarget;
+        this.hz = hz;
         this.hasKey = hasKey;
         LoadAdvice();
         ExeCandidates = game.Source == GameSource.Folder ? Scan.MainExe.Candidates(game.InstallDir)
@@ -155,42 +157,39 @@ public sealed class GameRow : INotifyPropertyChanged
 
     public void SetCover(ImageSource? cover) => Cover = cover;
 
-    GraphicsGoal? GoalOverride => lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.Goal : null;
+    GoalStep? TargetOverride => lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.Target : null;
 
-    public GraphicsGoal Goal => GoalOverride ?? defaultGoal();
+    public GoalStep Goal => TargetOverride ?? defaultTarget();
 
-    public string GoalFps
+    public bool HasOwnTarget => TargetOverride is not null;
+
+    public int TargetIndex
     {
-        get => GoalOverride?.Fps.ToString() ?? "";
+        get => (int)Goal;
         set
         {
-            var text = value.Trim();
-            if (text.Length == 0)
-            {
-                if (GoalOverride is null) return;
-                lib.For(Game).Goal = null;
-                SaveSoon();
-                Notify(nameof(GoalPriority));
-                return;
-            }
-            if (!int.TryParse(text, out var fps) || fps <= 0 || fps == GoalOverride?.Fps) return;
-            lib.For(Game).Goal = new GraphicsGoal(fps, Goal.Priority);
+            if (value == (int)Goal) return;
+            lib.For(Game).Target = (GoalStep)value;
             SaveSoon();
+            NotifyTarget();
         }
     }
 
-    public string FpsHint => defaultGoal().Fps.ToString();
+    public string TargetText => GoalTargets.Label(Goal, hz(), !HasOwnTarget);
 
-    public Priority GoalPriority
+    public void ResetTarget()
     {
-        get => Goal.Priority;
-        set
-        {
-            if (value == Goal.Priority) return;
-            lib.For(Game).Goal = new GraphicsGoal(Goal.Fps, value);
-            Save();
-            Notify(nameof(GoalFps));
-        }
+        if (!HasOwnTarget) return;
+        lib.For(Game).Target = null;
+        SaveSoon();
+        NotifyTarget();
+    }
+
+    void NotifyTarget()
+    {
+        Notify(nameof(TargetIndex));
+        Notify(nameof(TargetText));
+        Notify(nameof(HasOwnTarget));
     }
 
     public Advice.Advice? Latest => latest;
@@ -262,7 +261,7 @@ public sealed class GameRow : INotifyPropertyChanged
         latest = lib.Overrides.TryGetValue(Game.InstallDir, out var o) ? o.Advice : null;
         canApply = false;
         adviceRows = [];
-        foreach (var name in new[] { nameof(Latest), nameof(HasAdvice), nameof(AdviceSummary), nameof(AdviceRows), nameof(AdviceHeading), nameof(OptimizedText), nameof(AdviceNotes), nameof(AdviceAt), nameof(CanApply), nameof(CanApplyNow), nameof(GoalFps), nameof(GoalPriority) })
+        foreach (var name in new[] { nameof(Latest), nameof(HasAdvice), nameof(AdviceSummary), nameof(AdviceRows), nameof(AdviceHeading), nameof(OptimizedText), nameof(AdviceNotes), nameof(AdviceAt), nameof(CanApply), nameof(CanApplyNow), nameof(TargetIndex), nameof(TargetText), nameof(HasOwnTarget) })
             Notify(name);
     }
 
@@ -310,7 +309,7 @@ public sealed class GameRow : INotifyPropertyChanged
 
     public void NotifyDefaultsChanged()
     {
-        foreach (var name in new[] { nameof(FpsHint), nameof(GoalPriority), nameof(HasKey), nameof(NoKey), nameof(CanAsk), nameof(CanLocate) })
+        foreach (var name in new[] { nameof(TargetIndex), nameof(TargetText), nameof(HasOwnTarget), nameof(HasKey), nameof(NoKey), nameof(CanAsk), nameof(CanLocate) })
             Notify(name);
     }
 

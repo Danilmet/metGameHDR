@@ -44,7 +44,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
     }
 
     // The caller locates the config first; without a stored (and still allowed) path the request goes without a file.
-    public async Task<Advice> AskAsync(Game game, GraphicsGoal goal, CancellationToken ct)
+    public async Task<Advice> AskAsync(Game game, GoalStep goal, CancellationToken ct)
     {
         var client = Client();
         var hw = hardware();
@@ -54,7 +54,7 @@ public sealed class Advisor(Func<string?> apiKey, Func<string?> baseUrl, Func<st
             : new AdviceRequest(effective, hw, goal, null, null, null, false);
         var advice = new Advice(await client.AskAsync(request, ct), DateTime.UtcNow);
         var o = lib.For(game);
-        o.Goal = goal;
+        o.Target = goal;
         o.Advice = advice;
         lib.Save(libraryPath);
         return advice;

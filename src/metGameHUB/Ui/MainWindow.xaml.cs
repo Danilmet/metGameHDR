@@ -50,8 +50,8 @@ public partial class MainWindow : Window
         ClaudeKeyBox.Text = settings.ClaudeApiKey ?? "";
         ClaudeUrlBox.Text = settings.ClaudeBaseUrl ?? "";
         ClaudeModelBox.Text = settings.ClaudeModel ?? "";
-        DefaultFpsBox.Text = settings.DefaultFps?.ToString() ?? "";
-        DefaultPriorityBox.SelectedValue = settings.DefaultPriority;
+        DefaultTargetSlider.Value = (int)settings.DefaultTarget;
+        DefaultTargetText.Text = GoalTargets.Label(settings.DefaultTarget, monitorHz, false);
         AutostartBox.IsChecked = Autostart.IsEnabled();
         TurnOffBox.IsChecked = settings.TurnOffHdrOnExit;
         VersionText.Text = $"Версия {Updater.Current.ToString(3)}";
@@ -86,20 +86,11 @@ public partial class MainWindow : Window
             settings.ClaudeModel = ClaudeModelBox.Text.Trim() is { Length: > 0 } model ? model : null;
             SaveSettings();
         }));
-        DefaultFpsBox.TextChanged += (_, _) =>
+        DefaultTargetSlider.ValueChanged += (_, e) =>
         {
-            var text = DefaultFpsBox.Text.Trim();
-            if (text.Length == 0) settings.DefaultFps = null;
-            else if (int.TryParse(text, out var fps) && fps > 0) settings.DefaultFps = fps;
-            else return;
+            settings.DefaultTarget = (GoalStep)(int)e.NewValue;
             SaveSettings();
-            NotifyDefaultsChanged();
-        };
-        DefaultPriorityBox.SelectionChanged += (_, _) =>
-        {
-            if (DefaultPriorityBox.SelectedValue is not Priority priority) return;
-            settings.DefaultPriority = priority;
-            SaveSettings();
+            DefaultTargetText.Text = GoalTargets.Label(settings.DefaultTarget, monitorHz, false);
             NotifyDefaultsChanged();
         };
         SteamUserBox.SelectionChanged += (_, _) =>
@@ -182,7 +173,7 @@ public partial class MainWindow : Window
         row.RefreshCanApply();
         row.RefreshConfig();
         ShowGamePage(true);
-        Dispatcher.BeginInvoke(() => GoalFpsBox.Focus(), System.Windows.Threading.DispatcherPriority.Input);
+        Dispatcher.BeginInvoke(() => GoalSlider.Focus(), System.Windows.Threading.DispatcherPriority.Input);
     }
 
     void CloseGamePage_Click(object sender, RoutedEventArgs e)
@@ -239,7 +230,7 @@ public partial class MainWindow : Window
             var status = shortcuts != null && g.Source is GameSource.Folder or GameSource.App
                 ? SteamAdder.StatusOf(g, shortcuts, gridDir!)
                 : (SteamStatus?)null;
-            var row = new GameRow(g, lib, status, onLibraryChanged, roots, DefaultGoal, () => !string.IsNullOrWhiteSpace(settings.ClaudeApiKey));
+            var row = new GameRow(g, lib, status, onLibraryChanged, roots, () => settings.DefaultTarget, () => monitorHz, () => !string.IsNullOrWhiteSpace(settings.ClaudeApiKey));
             row.HiddenChanged += RefreshFilter;
             rows.Add(row);
         }
@@ -381,7 +372,6 @@ public partial class MainWindow : Window
         }
     }
 
-    GraphicsGoal DefaultGoal() => new(settings.DefaultFps ?? monitorHz, settings.DefaultPriority);
 
     void NotifyDefaultsChanged()
     {
@@ -397,6 +387,11 @@ public partial class MainWindow : Window
     void Ask_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is GameRow row) _ = RunAdviceAsync(row, true);
+    }
+
+    void ResetTarget_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is GameRow row) row.ResetTarget();
     }
 
     void Locate_Click(object sender, RoutedEventArgs e)

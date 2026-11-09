@@ -78,20 +78,20 @@ public class LibraryTests
         var lib = new Library { Games = [g] };
         var at = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
         var setting = new SettingAdvice("Shadows", "High", "Low", "Sec", "k", "0", "fps");
-        lib.For(g).Goal = new GraphicsGoal(120, Priority.Responsive);
+        lib.For(g).Target = GoalStep.Smooth;
         lib.For(g).Advice = new Advice.Advice(new AdviceResult("s", [setting], "n"), at);
         lib.For(g).ConfigPath = @"C:G.ini";
         try
         {
             lib.Save(path);
             var o = Library.Load(path).Overrides[@"C:\G"];
-            Assert.Equal(new GraphicsGoal(120, Priority.Responsive), o.Goal);
+            Assert.Equal(GoalStep.Smooth, o.Target);
             Assert.Equal(at, o.Advice!.At);
             Assert.Equal("s", o.Advice.Result.Summary);
             Assert.Equal(setting, o.Advice.Result.Settings.Single());
             Assert.Equal("n", o.Advice.Result.Notes);
             Assert.Equal(@"C:G.ini", o.ConfigPath);
-            Assert.Contains("\"Responsive\"", File.ReadAllText(path));
+            Assert.Contains("\"Smooth\"", File.ReadAllText(path));
         }
         finally { File.Delete(path); }
     }
@@ -104,10 +104,25 @@ public class LibraryTests
         {
             var o = Library.Load(path).Overrides[@"C:\G"];
             Assert.False(o.HdrEnabled);
-            Assert.Null(o.Goal);
+            Assert.Null(o.Target);
             Assert.Null(o.Advice);
         }
         finally { File.Delete(path); }
+    }
+
+    [Fact] public void Load_OldGoalObject_IsDroppedNotBad()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        File.WriteAllText(path, """{ "Overrides": { "C:\\G": { "HdrEnabled": false, "Goal": { "Fps": 120, "Priority": "Responsive" }, "ConfigPath": "C:\\G\\a.ini" } } }""");
+        try
+        {
+            var o = Library.Load(path).Overrides[@"C:\G"];
+            Assert.False(o.HdrEnabled);
+            Assert.Null(o.Target);
+            Assert.Equal(@"C:\G\a.ini", o.ConfigPath);
+            Assert.False(File.Exists(path + ".bad"));
+        }
+        finally { File.Delete(path); File.Delete(path + ".bad"); }
     }
 
     [Fact] public void Load_OldAdviceShape_DoesNotThrow()

@@ -17,7 +17,7 @@ public sealed class GameOverride
     public bool Hidden { get; set; }
     public string? MainExe { get; set; }
     public string? SearchName { get; set; }
-    public Advice.GraphicsGoal? Goal { get; set; }
+    public Advice.GoalStep? Target { get; set; }
     public Advice.Advice? Advice { get; set; }
     // Absolute path chosen by the model; null = not located yet.
     public string? ConfigPath { get; set; }

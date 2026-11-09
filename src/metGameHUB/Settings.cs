@@ -16,8 +16,7 @@ public sealed class Settings
     public string? ClaudeApiKey { get; set; }
     public string? ClaudeBaseUrl { get; set; }
     public string? ClaudeModel { get; set; }
-    public int? DefaultFps { get; set; }
-    public Advice.Priority DefaultPriority { get; set; } = Advice.Priority.Balanced;
+    public Advice.GoalStep DefaultTarget { get; set; } = Advice.GoalStep.Balanced;
 
     public static Settings Load(string path)
     {

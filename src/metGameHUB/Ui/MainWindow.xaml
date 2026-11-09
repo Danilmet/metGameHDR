@@ -205,28 +205,10 @@
                         </StackPanel>
 
                         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,14,0,0">
-                            <TextBlock Text="FPS" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{DynamicResource TextSecondary}"/>
-                            <Grid Width="60">
-                                <TextBox x:Name="GoalFpsBox" IsEnabled="{Binding IsIdle}" Text="{Binding GoalFps, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                <TextBlock Text="{Binding FpsHint, Mode=OneWay}" Margin="9,0,0,0" VerticalAlignment="Center"
-                                           IsHitTestVisible="False" Foreground="{DynamicResource TextSecondary}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Text, ElementName=GoalFpsBox}" Value="">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </Grid>
-                            <ComboBox Width="150" Margin="8,0,0,0" IsEnabled="{Binding IsIdle}" SelectedValuePath="Tag" SelectedValue="{Binding GoalPriority}">
-                                <ComboBoxItem Content="Картинка" Tag="{x:Static adv:Priority.Quality}"/>
-                                <ComboBoxItem Content="Баланс" Tag="{x:Static adv:Priority.Balanced}"/>
-                                <ComboBoxItem Content="Отзывчивость" Tag="{x:Static adv:Priority.Responsive}"/>
-                            </ComboBox>
+                            <TextBlock Text="Качество" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
+                            <Slider x:Name="GoalSlider" Width="220" Margin="8,0" Minimum="0" Maximum="4" TickFrequency="1" IsSnapToTickEnabled="True"
+                                    TickPlacement="BottomRight" VerticalAlignment="Center" IsEnabled="{Binding IsIdle}" Value="{Binding TargetIndex}"/>
+                            <TextBlock Text="Производительность" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
                             <Button Content="Подобрать" Margin="8,0,0,0" Style="{StaticResource AccentButton}" Click="Ask_Click"
                                     IsEnabled="{Binding CanAsk}"/>
                             <StackPanel Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center"
@@ -244,6 +226,12 @@
                         </StackPanel>
 
                         <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="{Binding TargetText, Mode=OneWay}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
+                                <Button Content="Сбросить" Margin="10,0,0,0" VerticalAlignment="Center" Style="{StaticResource LinkButton}"
+                                        Click="ResetTarget_Click" IsEnabled="{Binding IsIdle}"
+                                        Visibility="{Binding HasOwnTarget, Converter={StaticResource BoolToVisibility}}"/>
+                            </StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{Binding ConfigText, Mode=OneWay}" MaxWidth="620" TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"
@@ -415,14 +403,14 @@
                             <ComboBoxItem Content="claude-fable-5-1"/>
                         </ComboBox>
                         <TextBlock Text="Пусто — claude-opus-5-5; дешевле — claude-sonnet-5-5" Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource TextSecondary}"/>
-                        <TextBlock Text="FPS по умолчанию (пусто — частота монитора)" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
-                        <TextBox x:Name="DefaultFpsBox" Width="60" HorizontalAlignment="Left"/>
-                        <TextBlock Text="Приоритет по умолчанию" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
-                        <ComboBox x:Name="DefaultPriorityBox" Width="200" HorizontalAlignment="Left" SelectedValuePath="Tag">
-                            <ComboBoxItem Content="Картинка" Tag="{x:Static adv:Priority.Quality}"/>
-                            <ComboBoxItem Content="Баланс" Tag="{x:Static adv:Priority.Balanced}"/>
-                            <ComboBoxItem Content="Отзывчивость" Tag="{x:Static adv:Priority.Responsive}"/>
-                        </ComboBox>
+                        <TextBlock Text="Цель по умолчанию" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Качество" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
+                            <Slider x:Name="DefaultTargetSlider" Width="220" Margin="8,0" Minimum="0" Maximum="4" TickFrequency="1" IsSnapToTickEnabled="True"
+                                    TickPlacement="BottomRight" VerticalAlignment="Center"/>
+                            <TextBlock Text="Производительность" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+                        <TextBlock x:Name="DefaultTargetText" Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource TextSecondary}"/>
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource CardSurface}" Margin="0,10,0,0">

@@ -8,7 +8,7 @@ namespace MetGameHUB.Advice;
 
 public sealed record LocateRequest(Game Game, IReadOnlyList<string> InstallRootEntries, IReadOnlyList<string> CandidatePaths, string? UnrealProject);
 
-public sealed record AdviceRequest(Game Game, HardwareInfo Hardware, GraphicsGoal Goal, string? ConfigPath, string? ConfigFormat, string? ConfigText, bool Truncated);
+public sealed record AdviceRequest(Game Game, HardwareInfo Hardware, GoalStep Goal, string? ConfigPath, string? ConfigFormat, string? ConfigText, bool Truncated);
 
 public sealed class AdviceException(string message) : Exception(message);
 
@@ -29,13 +29,14 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
         """;
 
     const string AskPrompt = """
-        Ты эксперт по оптимизации графических настроек ПК-игр. Тебе дают игру, железо пользователя, цель (кадры в секунду и приоритет: картинка, баланс или отзывчивость) и, если найден, файл настроек игры с его содержимым.
+        Ты эксперт по оптимизации графических настроек ПК-игр. Тебе дают игру, железо пользователя, цель (режим и кадры в секунду) и, если найден, файл настроек игры с его содержимым.
         Правила:
         1. Найди свежие материалы по оптимизации именно этой игры (статьи, тесты, форумы) и опирайся на них и на известное поведение движка.
-        2. settings — один список строк по пунктам графического меню игры. name и value-поля пиши так, как они видны в меню игры (на языке игры, если неизвестен — по-английски). Разрешение и апскейлер указывай под монитор пользователя. Цель по кадрам — для типичных сцен, с запасом ~10%.
-        3. Для каждого пункта: current — текущее значение, разобранное из присланного файла и переведённое в подпись меню (например ключ 3 → "High"); если файла нет или пункт в нём не хранится — null. recommended — рекомендуемая подпись меню.
-        4. Если пункт хранится в присланном файле, заполни section (секция INI или null), key (точное имя ключа из файла; для INI допустим документированный для движка ключ, которого в файле нет) и value — сырое значение для записи в файл в том виде, в каком оно там пишется (число, true/false, строка без лишних кавычек). Иначе section/key/value — null. Ключи не выдумывай.
-        5. summary, reason и notes — строго по-русски. summary — 2–3 предложения о том, что упирается в железо и чем пожертвовали. notes — предупреждения (например, что часть настроек надо выставить руками), иначе null.
+        2. goal.mode задаёт, чем жертвовать: max_quality — максимум картинки, кадры как получатся, но не ниже goal.fps; quality — стабильно держать goal.fps, весь остальной запас отдать картинке; balanced — держать goal.fps в типичных сценах, жертвовать самым дорогим при малой разнице в картинке; smooth — держать goal.fps с запасом и по минимальным кадрам (1% low), картинка во вторую очередь; max_fps — как можно больше кадров и минимальная задержка, картинка вторична (goal.fps = null). Цель по кадрам — для типичных сцен, с запасом ~10%.
+        3. settings — один список строк по пунктам графического меню игры. name и value-поля пиши так, как они видны в меню игры (на языке игры, если неизвестен — по-английски). Разрешение и апскейлер указывай под монитор пользователя.
+        4. Для каждого пункта: current — текущее значение, разобранное из присланного файла и переведённое в подпись меню (например ключ 3 → "High"); если файла нет или пункт в нём не хранится — null. recommended — рекомендуемая подпись меню.
+        5. Если пункт хранится в присланном файле, заполни section (секция INI или null), key (точное имя ключа из файла; для INI допустим документированный для движка ключ, которого в файле нет) и value — сырое значение для записи в файл в том виде, в каком оно там пишется (число, true/false, строка без лишних кавычек). Иначе section/key/value — null. Ключи не выдумывай.
+        6. summary, reason и notes — строго по-русски. summary — 2–3 предложения о том, что упирается в железо и чем пожертвовали. notes — предупреждения (например, что часть настроек надо выставить руками), иначе null.
         Отвечай только одним JSON-объектом по схеме, без пояснений и без markdown-ограждений:
         {"type":"object","additionalProperties":false,"required":["summary","settings","notes"],"properties":{"summary":{"type":"string"},"settings":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["name","current","recommended","section","key","value","reason"],"properties":{"name":{"type":"string"},"current":{"type":["string","null"]},"recommended":{"type":"string"},"section":{"type":["string","null"]},"key":{"type":["string","null"]},"value":{"type":["string","null"]},"reason":{"type":"string"}}}},"notes":{"type":["string","null"]}}}
         """;
@@ -91,7 +92,7 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
     {
         game = GameInfo(r.Game),
         hardware = r.Hardware,
-        goal = r.Goal,
+        goal = new { mode = GoalTargets.Mode(r.Goal), fps = GoalTargets.For(r.Goal, r.Hardware.Hz).Fps },
         config = r.ConfigPath is null ? null : new { path = r.ConfigPath, format = r.ConfigFormat, text = r.ConfigText, truncated = r.Truncated },
     });
 

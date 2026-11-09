@@ -79,13 +79,13 @@ public class AdvisorTests
     public async Task AskAsync_StoresAdviceOnOverrideAndSaves()
     {
         using var e = new Env();
-        var goal = new GraphicsGoal(60, Priority.Quality);
+        var goal = GoalStep.Pretty;
 
         var advice = await e.Advisor(Reply(EmptyAdvice)).AskAsync(e.Game, goal, CancellationToken.None);
 
         Assert.Equal("sum", advice.Result.Summary);
         Assert.Same(advice, e.Lib.For(e.Game).Advice);
-        Assert.Equal(goal, e.Lib.For(e.Game).Goal);
+        Assert.Equal(goal, e.Lib.For(e.Game).Target);
         Assert.Equal("sum", Library.Load(e.LibPath).For(e.Game).Advice!.Result.Summary);
     }
 
@@ -95,7 +95,7 @@ public class AdvisorTests
         using var e = new Env();
         e.Lib.For(e.Game).ConfigPath = null;
 
-        await e.Advisor(Reply(EmptyAdvice)).AskAsync(e.Game, new GraphicsGoal(60, Priority.Balanced), CancellationToken.None);
+        await e.Advisor(Reply(EmptyAdvice)).AskAsync(e.Game, GoalStep.Balanced, CancellationToken.None);
 
         Assert.Equal(JsonValueKind.Null, SentConfig(e.Handler!.Body).ValueKind);
     }
@@ -106,7 +106,7 @@ public class AdvisorTests
         using var e = new Env();
         File.WriteAllText(e.Ini, "[S]\r\nA=1\r\nPassword=hunter2\r\n");
 
-        await e.Advisor(Reply(EmptyAdvice)).AskAsync(e.Game, new GraphicsGoal(60, Priority.Balanced), CancellationToken.None);
+        await e.Advisor(Reply(EmptyAdvice)).AskAsync(e.Game, GoalStep.Balanced, CancellationToken.None);
 
         var config = SentConfig(e.Handler!.Body);
         Assert.Equal(e.Ini, config.GetProperty("path").GetString());
@@ -127,7 +127,7 @@ public class AdvisorTests
         o.MainExe = "real.exe";
 
         var advisor = e.Advisor();
-        await Assert.ThrowsAnyAsync<Exception>(() => advisor.AskAsync(e.Game, new GraphicsGoal(60, Priority.Balanced), CancellationToken.None));
+        await Assert.ThrowsAnyAsync<Exception>(() => advisor.AskAsync(e.Game, GoalStep.Balanced, CancellationToken.None));
 
         Assert.Contains("Real Name", e.Handler!.Body);
         Assert.Contains("real.exe", e.Handler.Body);

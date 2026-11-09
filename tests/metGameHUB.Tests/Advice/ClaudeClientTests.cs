@@ -47,8 +47,24 @@ public class ClaudeClientTests
     static AdviceRequest Request() => new(
         new Game("G", @"C:\g", GameSource.Steam, "g.exe"),
         new HardwareInfo("RTX", 8, "CPU", 16, 2560, 1440, 144, "Win11"),
-        new GraphicsGoal(60, Priority.Balanced),
+        GoalStep.Balanced,
         @"C:\g\a.ini", "ini", "k=1", false);
+
+    static JsonElement UserJson(string body)
+    {
+        using var doc = JsonDocument.Parse(body);
+        return JsonDocument.Parse(doc.RootElement.GetProperty("messages")[0].GetProperty("content").GetString()!).RootElement.Clone();
+    }
+
+    [Fact]
+    public void BuildAskBody_GoalHasModeAndFps()
+    {
+        var user = UserJson(ClaudeClient.BuildAskBody(Request(), "m"));
+        Assert.Equal("balanced", user.GetProperty("goal").GetProperty("mode").GetString());
+        Assert.Equal(100, user.GetProperty("goal").GetProperty("fps").GetInt32());
+        var max = UserJson(ClaudeClient.BuildAskBody(Request() with { Goal = GoalStep.MaxFps }, "m"));
+        Assert.Equal(JsonValueKind.Null, max.GetProperty("goal").GetProperty("fps").ValueKind);
+    }
 
     static LocateRequest LocateReq() => new(
         new Game("G", @"C:\g", GameSource.Steam, "g.exe"), ["Binaries\\", "g.exe"], [@"C:\g\a.ini"], "ProjectX");
@@ -102,7 +118,7 @@ public class ClaudeClientTests
             Assert.Equal("ini", config.GetProperty("format").GetString());
             Assert.Equal("k=1", config.GetProperty("text").GetString());
             Assert.False(config.GetProperty("truncated").GetBoolean());
-            Assert.Equal("Balanced", user.RootElement.GetProperty("goal").GetProperty("priority").GetString());
+            Assert.Equal("balanced", user.RootElement.GetProperty("goal").GetProperty("mode").GetString());
         }
 
         await client.AskAsync(Request() with { ConfigPath = null, ConfigFormat = null, ConfigText = null }, CancellationToken.None);
