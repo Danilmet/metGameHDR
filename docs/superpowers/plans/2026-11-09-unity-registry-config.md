@@ -437,7 +437,7 @@ git commit -m "Advisor: hint Unity PlayerPrefs key and accept registry format"
 
 - [ ] **Step 1: Написать падающие тесты в `AdvisorTests`**
 
-В `Env`: поле `public string BackupDir = Path.Combine(Dir, "regbak")`, в конструкторе `Directory.CreateDirectory(BackupDir); ConfigStore.BackupDir = () => BackupDir;`. Хелпер `RegKey()` — создаёт `HKCU\Software\metGameHUB.Tests\<guid>` с `Width_h1 = 1920` (DWORD), удаляет в `Dispose`; `Lib.For(Game).ConfigPath = key`.
+В `Env`: поле `public string BackupDir = Path.Combine(Dir, "regbak")`, в конструкторе `Directory.CreateDirectory(BackupDir); ConfigStore.BackupDir = () => BackupDir;`. Хелперы: `string RegKey()` — создаёт `HKCUSoftwaremetGameHUB.Tests<guid>` с `Width_h1 = 1920` (DWORD), ставит `Lib.For(Game).ConfigPath = key`, ключ удаляется в `Dispose`; `object? RegValue(string name)` — читает значение этого ключа.
 
 ```csharp
 [Fact] public async Task LocateAsync_Registry_AllowedKeyStored()
