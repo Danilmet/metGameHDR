@@ -46,7 +46,9 @@ public partial class MainWindow : Window
         chat = new ChatPanel(ChatInput, ChatChips, ChatAttach, ChatMic, ChatSend, ChatBetter, ChatWorse);
         chat.Send += (text, ready) =>
         {
-            if (GamePage.DataContext is GameRow row) _ = SendChatAsync(row, text, ready);
+            if (GamePage.DataContext is not GameRow row) return;
+            ShowChatHistory(true);
+            _ = SendChatAsync(row, text, ready);
         };
 
         GamesGrid.ItemsSource = rows;
@@ -136,9 +138,11 @@ public partial class MainWindow : Window
     void ApplyBackdrop() =>
         RootGrid.SetResourceReference(BackgroundProperty, Backdrop.TryApply(this, !Theme.IsLight()) ? "WindowBackground" : "WindowBackgroundSolid");
 
-    void CloseDetails_Click(object sender, RoutedEventArgs e) => GamesGrid.UnselectAll();
-
-    void RefreshFilter() => System.Windows.Data.CollectionViewSource.GetDefaultView(rows).Refresh();
+    // Deferred while the game page is open: filtering out its hidden game would drop the selection and close the page.
+    void RefreshFilter()
+    {
+        if (GamePage.Visibility != Visibility.Visible) System.Windows.Data.CollectionViewSource.GetDefaultView(rows).Refresh();
+    }
 
     void ShowHidden_Click(object sender, RoutedEventArgs e) => RefreshFilter();
 
@@ -148,7 +152,8 @@ public partial class MainWindow : Window
         if (GamesTab.IsChecked == true && GamePage.Visibility == Visibility.Visible)
         {
             if (InOpenDropDown(Keyboard.FocusedElement) || InOpenDropDown(e.OriginalSource)) return;
-            if (ConfirmLeave()) ShowGamePage(false);
+            if (ChatHistory.Visibility == Visibility.Visible) ShowChatHistory(false);
+            else if (ConfirmLeave()) ShowGamePage(false);
             e.Handled = true;
         }
         else if (GamesGrid.SelectedItems.Count > 0)
@@ -173,14 +178,13 @@ public partial class MainWindow : Window
     {
         GamePage.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         GamesArea.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
-        if (!show) return;
+        if (!show)
+        {
+            RefreshFilter();
+            return;
+        }
         GameStrip.SelectedItem = GamesGrid.SelectedItem;
         if (GameStrip.SelectedItem != null) GameStrip.ScrollIntoView(GameStrip.SelectedItem);
-    }
-
-    void OpenGamePage_Click(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is GameRow row) OpenGamePage(row);
     }
 
     // Mouse and keyboard both land here, so switching games always goes through ConfirmLeave.
@@ -196,13 +200,23 @@ public partial class MainWindow : Window
         OpenGamePage(row);
     }
 
+    // A second click on the current game's tile goes back to the grid, like "← Назад".
+    void StripTile_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ListBoxItem { DataContext: GameRow row } || !ReferenceEquals(row, GamesGrid.SelectedItem)) return;
+        e.Handled = true;
+        if (ConfirmLeave()) ShowGamePage(false);
+    }
+
     void OpenGamePage(GameRow row)
     {
         row.ApplyStatus = "";
         row.RefreshCanApply();
         row.RefreshConfig();
         chat.Clear();
+        ShowChatHistory(false);
         ShowGamePage(true);
+        PageScroll.ScrollToTop();
         Dispatcher.BeginInvoke(() => GoalSlider.Focus(), System.Windows.Threading.DispatcherPriority.Input);
     }
 
@@ -211,13 +225,36 @@ public partial class MainWindow : Window
         if (ConfirmLeave()) ShowGamePage(false);
     }
 
+    // A plain click opens the game page; Ctrl/Shift clicks keep the ListBox multi-select for "Add to Steam".
     void Card_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is ListBoxItem { IsSelected: true } && GamesGrid.SelectedItems.Count == 1 && Keyboard.Modifiers == ModifierKeys.None)
-        {
-            GamesGrid.UnselectAll();
-            e.Handled = true;
-        }
+        if (sender is not ListBoxItem { DataContext: GameRow row } || Keyboard.Modifiers != ModifierKeys.None) return;
+        GamesGrid.SelectedItem = row;
+        OpenGamePage(row);
+        e.Handled = true;
+    }
+
+    void GamesGrid_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || GamesGrid.SelectedItems.Count != 1 || GamesGrid.SelectedItem is not GameRow row) return;
+        OpenGamePage(row);
+        e.Handled = true;
+    }
+
+    void ChatHistoryToggle_Click(object sender, RoutedEventArgs e) => ShowChatHistory(ChatHistory.Visibility != Visibility.Visible);
+
+    void ShowChatHistory(bool show)
+    {
+        ChatHistory.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        ChatHistoryToggle.Content = show ? "💬 ▾" : "💬 ▴";
+        if (show) _ = Dispatcher.BeginInvoke(ChatScroll.ScrollToEnd, System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    void ParamsToggle_Click(object sender, RoutedEventArgs e)
+    {
+        var open = ParamsPanel.Visibility != Visibility.Visible;
+        ParamsPanel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        ParamsToggle.Content = open ? "Параметры ▾" : "Параметры ▸";
     }
 
     // ListBox captures the mouse on an item click and then selects every item the pointer enters (drag-select); dropping that capture disables it.
@@ -228,7 +265,6 @@ public partial class MainWindow : Window
 
     void GamesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        DetailsPanel.Visibility = GamesGrid.SelectedItems.Count == 1 ? Visibility.Visible : Visibility.Collapsed;
         if (GamesGrid.SelectedItems.Count != 1) ShowGamePage(false);
     }
 
@@ -614,9 +650,6 @@ public partial class MainWindow : Window
 
     GameRow? CurrentRow(GameRow row) =>
         rows.FirstOrDefault(r => string.Equals(r.Game.InstallDir, row.Game.InstallDir, StringComparison.OrdinalIgnoreCase));
-
-    void DetailsPanel_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e) =>
-        (e.NewValue as GameRow)?.RefreshCanApply();
 
     void Apply_Click(object sender, RoutedEventArgs e)
     {

@@ -28,17 +28,13 @@
         <Grid Grid.Row="1" Margin="14,8,14,14"
               Visibility="{Binding IsChecked, ElementName=GamesTab, Converter={StaticResource BoolToVisibility}}">
             <Grid x:Name="GamesArea">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <ListBox x:Name="GamesGrid" SelectionMode="Extended" SelectionChanged="GamesGrid_SelectionChanged"
-                         GotMouseCapture="GamesGrid_GotMouseCapture"
+                         GotMouseCapture="GamesGrid_GotMouseCapture" KeyDown="GamesGrid_KeyDown"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
@@ -140,40 +136,7 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
 
-                <Border x:Name="DetailsPanel" Grid.Column="1" Style="{StaticResource CardSurface}" Width="260" Margin="12,0,0,0"
-                        VerticalAlignment="Top" Visibility="Collapsed"
-                        DataContext="{Binding SelectedItem, ElementName=GamesGrid}"
-                        DataContextChanged="DetailsPanel_DataContextChanged">
-                    <StackPanel>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"
-                                       VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Content="✕" Width="28" Height="28" Padding="0" Margin="8,0,0,0"
-                                    VerticalAlignment="Top" ToolTip="Закрыть" Click="CloseDetails_Click"/>
-                        </Grid>
-                        <TextBlock Margin="0,2,0,0" Text="{Binding Details, Mode=OneWay}" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap"/>
-                        <CheckBox Style="{StaticResource HdrToggle}" Content="HDR" Margin="0,10,0,0"
-                                  IsChecked="{Binding HdrEnabled, UpdateSourceTrigger=PropertyChanged}"
-                                  Visibility="{Binding HdrApplies, Converter={StaticResource BoolToVisibility}}"/>
-                        <CheckBox Content="Скрыть" Margin="0,8,0,0" ToolTip="Не показывать в списке и не включать HDR"
-                                  IsChecked="{Binding Hidden, UpdateSourceTrigger=PropertyChanged}"/>
-                        <TextBlock Text="Exe" Margin="0,14,0,4" Foreground="{DynamicResource TextSecondary}"/>
-                        <ComboBox IsEditable="True" ItemsSource="{Binding ExeCandidates}" IsEnabled="{Binding CanAddToSteam}"
-                                  Text="{Binding MainExe, UpdateSourceTrigger=PropertyChanged}"/>
-                        <TextBlock Text="Имя для поиска" Margin="0,12,0,4" Foreground="{DynamicResource TextSecondary}"/>
-                        <TextBox Text="{Binding SearchName, UpdateSourceTrigger=PropertyChanged}"/>
-                        <TextBlock Text="Графика" FontWeight="SemiBold" Margin="0,18,0,0"/>
-                        <TextBlock Text="{Binding OptimizedText, Mode=OneWay}" Margin="0,8,0,0" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextSecondary}"/>
-                        <Button Content="Открыть" Margin="0,10,0,0" Style="{StaticResource AccentButton}" Click="OpenGamePage_Click"/>
-                    </StackPanel>
-                </Border>
-
-                <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,12,0,0">
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
                     <Button x:Name="RefreshButton" Content="Обновить" Click="Refresh_Click"/>
                     <Button x:Name="AddAppButton" Content="Добавить приложение" Margin="8,0,0,0" Click="AddApp_Click"/>
                     <Button x:Name="AddToSteamButton" Content="Добавить выбранное в Steam" Margin="8,0,0,0"
@@ -191,6 +154,11 @@
                 <!-- Shares GamesGrid's default view, so the hidden-games filter applies here too. -->
                 <ListBox x:Name="GameStrip" Margin="0,0,10,0" ItemsSource="{Binding ItemsSource, ElementName=GamesGrid}"
                          SelectionChanged="GameStrip_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="StripTile_PreviewMouseLeftButtonDown"/>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <Border x:Name="Tile" Width="60" Height="60" Margin="0,3,6,3" CornerRadius="10" BorderThickness="2"
@@ -222,7 +190,12 @@
                 </ListBox>
                 <Border Grid.Column="1" Style="{StaticResource CardSurface}">
                     <Grid>
+                    <!-- The whole page scrolls, so in a short window the advice table keeps its height instead of collapsing. -->
+                    <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto">
+                    <Grid>
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -231,53 +204,99 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <StackPanel Orientation="Horizontal">
-                            <Button Content="← Назад" Height="72" Click="CloseGamePage_Click"/>
-                            <Image Source="{Binding Cover}" Height="72" Margin="14,0,0,0" Stretch="Uniform"/>
-                            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Content="← Назад" Height="72" VerticalAlignment="Center" Click="CloseGamePage_Click"/>
+                            <Image Grid.Column="1" Source="{Binding Cover}" Height="72" Margin="14,0,0,0" Stretch="Uniform"/>
+                            <StackPanel Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Name}" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Text="{Binding Details, Mode=OneWay}" Foreground="{DynamicResource TextSecondary}"/>
+                                <TextBlock Text="{Binding Details, Mode=OneWay}" Foreground="{DynamicResource TextSecondary}" TextTrimming="CharacterEllipsis"/>
+                                <Button x:Name="ParamsToggle" Content="Параметры ▸" HorizontalAlignment="Left" Margin="0,4,0,0"
+                                        Style="{StaticResource LinkButton}" Click="ParamsToggle_Click"/>
                             </StackPanel>
-                        </StackPanel>
+                            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                                <CheckBox Style="{StaticResource HdrToggle}" Content="HDR" VerticalAlignment="Center"
+                                          IsChecked="{Binding HdrEnabled, UpdateSourceTrigger=PropertyChanged}"
+                                          Visibility="{Binding HdrApplies, Converter={StaticResource BoolToVisibility}}"/>
+                                <CheckBox Content="Скрыть" Margin="16,0,12,0" VerticalAlignment="Center" ToolTip="Не показывать в списке и не включать HDR"
+                                          IsChecked="{Binding Hidden, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                        </Grid>
 
-                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,14,0,0">
+                        <WrapPanel x:Name="ParamsPanel" Grid.Row="1" Margin="0,12,0,0" Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,16,6">
+                                <TextBlock Text="Exe" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
+                                <ComboBox Width="360" IsEditable="True" ItemsSource="{Binding ExeCandidates}" IsEnabled="{Binding CanAddToSteam}"
+                                          Text="{Binding MainExe, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="Имя для поиска" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
+                                <TextBox Width="240" Text="{Binding SearchName, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                        </WrapPanel>
+
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,14,0,0">
                             <TextBlock Text="Качество" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
                             <Slider x:Name="GoalSlider" Width="220" Margin="8,0" Minimum="0" Maximum="4" TickFrequency="1" IsSnapToTickEnabled="True"
                                     TickPlacement="BottomRight" VerticalAlignment="Center" IsEnabled="{Binding IsIdle}" Value="{Binding TargetIndex}"/>
                             <TextBlock Text="Производительность" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
                             <Button Content="Подобрать" Margin="8,0,0,0" Style="{StaticResource AccentButton}" Click="Ask_Click"
                                     IsEnabled="{Binding CanAsk}"/>
-                            <StackPanel Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center"
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="3">
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
                                         Visibility="{Binding IsAsking, Converter={StaticResource BoolToVisibility}}">
                                 <ProgressBar IsIndeterminate="True" Width="220" Height="3" BorderThickness="0" Background="Transparent"
                                              Foreground="{DynamicResource Accent}" VerticalAlignment="Center"/>
                                 <TextBlock Text="{Binding AskStage, Mode=OneWay}" Margin="10,0,0,0" VerticalAlignment="Center"
                                            Foreground="{DynamicResource TextSecondary}"/>
                             </StackPanel>
-                            <TextBlock Text="Укажите ключ Claude в настройках" Margin="12,0,0,0" VerticalAlignment="Center"
+                            <TextBlock Text="Укажите ключ Claude в настройках" Margin="0,8,0,0" TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextSecondary}"
                                        Visibility="{Binding NoKey, Converter={StaticResource BoolToVisibility}}"/>
-                            <TextBlock Text="{Binding AdviceStatus, Mode=OneWay}" Margin="12,0,0,0" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource TextSecondary}"/>
+                            <TextBlock Text="{Binding AdviceStatus, Mode=OneWay}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondary}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding AdviceStatus}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
 
-                        <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                        <StackPanel Grid.Row="4" Margin="0,10,0,0">
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                 <TextBlock Text="{Binding TargetText, Mode=OneWay}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
                                 <Button Content="Сбросить" Margin="10,0,0,0" VerticalAlignment="Center" Style="{StaticResource LinkButton}"
                                         Click="ResetTarget_Click" IsEnabled="{Binding IsIdle}"
                                         Visibility="{Binding HasOwnTarget, Converter={StaticResource BoolToVisibility}}"/>
                             </StackPanel>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding ConfigText, Mode=OneWay}" MaxWidth="620" TextTrimming="CharacterEllipsis"
+                            <!-- Left-aligned Grid: the * column shrinks to the path's width and trims it only when the links would not fit. -->
+                            <Grid HorizontalAlignment="Left">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding ConfigText, Mode=OneWay}" TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"
                                            ToolTip="{Binding ConfigText, Mode=OneWay}" ToolTipService.IsEnabled="{Binding HasConfigPath}"/>
-                                <Button Content="Найти заново" Margin="10,0,0,0" VerticalAlignment="Center" Style="{StaticResource LinkButton}"
+                                <Button Grid.Column="1" Content="Найти заново" Margin="10,0,0,0" VerticalAlignment="Center" Style="{StaticResource LinkButton}"
                                         Click="Locate_Click" IsEnabled="{Binding CanLocate}"/>
-                                <Button Content="Конфиг изменился — Обновить" Margin="10,0,0,0" VerticalAlignment="Center" Style="{StaticResource LinkButton}"
+                                <Button Grid.Column="2" Content="Конфиг изменился — Обновить" Margin="10,0,0,0" VerticalAlignment="Center" Style="{StaticResource LinkButton}"
                                         Click="RefreshSnapshot_Click" IsEnabled="{Binding IsIdle}"
                                         Visibility="{Binding SnapshotStale, Converter={StaticResource BoolToVisibility}}"/>
-                            </StackPanel>
+                            </Grid>
                             <TextBlock Text="{Binding ConfigDetail, Mode=OneWay}" MaxWidth="900" HorizontalAlignment="Left" FontSize="12"
                                        TextWrapping="Wrap" Foreground="{DynamicResource TextSecondary}">
                                 <TextBlock.Style>
@@ -292,8 +311,7 @@
                             </TextBlock>
                         </StackPanel>
 
-                        <ScrollViewer Grid.Row="3" Margin="0,14,0,0" VerticalScrollBarVisibility="Auto">
-                            <StackPanel MaxWidth="900" HorizontalAlignment="Left" Grid.IsSharedSizeScope="True">
+                            <StackPanel Grid.Row="5" Margin="0,14,0,0" MaxWidth="900" HorizontalAlignment="Left" Grid.IsSharedSizeScope="True">
                                 <TextBlock Text="{Binding AdviceSummary, Mode=OneWay}" TextWrapping="Wrap"
                                            Visibility="{Binding HasAdvice, Converter={StaticResource BoolToVisibility}}"/>
                                 <TextBlock Text="{Binding AdviceHeading, Mode=OneWay}" Margin="0,14,0,6" FontWeight="SemiBold"
@@ -372,9 +390,8 @@
                                 <TextBlock Text="{Binding AdviceAt, Mode=OneWay}" FontSize="11" Margin="0,6,0,0"
                                            Foreground="{DynamicResource TextSecondary}"/>
                             </StackPanel>
-                        </ScrollViewer>
 
-                        <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,14,0,0">
+                        <StackPanel Grid.Row="6" Orientation="Horizontal" Margin="0,14,0,0">
                             <Button Content="Применить" Style="{StaticResource AccentButton}" Click="Apply_Click" IsEnabled="{Binding CanApplyNow}"/>
                             <Button Content="Отменить" Margin="8,0,0,0" Click="CloseGamePage_Click"/>
                             <Button Content="Вернуть исходный конфиг" Margin="8,0,0,0" Click="Restore_Click" IsEnabled="{Binding IsIdle}"
@@ -383,8 +400,22 @@
                                        Foreground="{DynamicResource TextSecondary}"/>
                         </StackPanel>
 
-                        <StackPanel Grid.Row="5" Margin="0,14,0,0" MaxWidth="900" HorizontalAlignment="Left"
-                                    Visibility="{Binding HasAdvice, Converter={StaticResource BoolToVisibility}}">
+                        <!-- Room under the content so the floating chat bar never covers the last rows. -->
+                        <Border Grid.Row="7" Margin="0,14,0,0" Height="{Binding ActualHeight, ElementName=ChatBar}"/>
+                    </Grid>
+                    </ScrollViewer>
+
+                    <Grid x:Name="ChatBar" VerticalAlignment="Bottom" MaxWidth="760" Margin="16,0"
+                          Visibility="{Binding HasAdvice, Converter={StaticResource BoolToVisibility}}">
+                        <!-- The shadow sits on a separate layer: an Effect on the content would blur its text. -->
+                        <Border CornerRadius="12" Background="{DynamicResource FloatingSurface}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="24" ShadowDepth="2" Opacity="0.45"/>
+                            </Border.Effect>
+                        </Border>
+                        <Border CornerRadius="12" Padding="12,10" BorderThickness="1" BorderBrush="{DynamicResource Border}">
+                        <StackPanel>
+                        <StackPanel x:Name="ChatHistory" Margin="0,0,0,10" Visibility="Collapsed">
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                 <TextBlock Text="Уточнить совет" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                 <Button Content="Очистить" Margin="10,0,0,0" VerticalAlignment="Center"
@@ -400,7 +431,7 @@
                                     </Button.Style>
                                 </Button>
                             </StackPanel>
-                            <ScrollViewer x:Name="ChatScroll" MaxHeight="220" VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer x:Name="ChatScroll" MaxHeight="320" VerticalScrollBarVisibility="Auto">
                                 <ItemsControl ItemsSource="{Binding Chat}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -437,6 +468,39 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </ScrollViewer>
+                            <TextBlock Text="Спросите, что поменять в совете: текстом, голосом или со скриншотом" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondary}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Chat.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="{Binding AdviceStatus, Mode=OneWay}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondary}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding AdviceStatus}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8"
+                                        Visibility="{Binding IsAsking, Converter={StaticResource BoolToVisibility}}">
+                                <ProgressBar IsIndeterminate="True" Width="160" Height="3" BorderThickness="0" Background="Transparent"
+                                             Foreground="{DynamicResource Accent}" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding AskStage, Mode=OneWay}" Margin="10,0,0,0" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextSecondary}"/>
+                            </StackPanel>
                             <TextBlock Text="Задайте ключ API в настройках" Foreground="{DynamicResource TextSecondary}"
                                        Visibility="{Binding NoKey, Converter={StaticResource BoolToVisibility}}"/>
                             <StackPanel IsEnabled="{Binding CanChat}"
@@ -466,21 +530,34 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <TextBox x:Name="ChatInput" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" MinHeight="34"
-                                         VerticalScrollBarVisibility="Auto" AllowDrop="True"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="ChatHistoryToggle" Content="💬 ▴" ToolTip="История уточнений" VerticalAlignment="Bottom"
+                                            Click="ChatHistoryToggle_Click"/>
+                                    <TextBox x:Name="ChatInput" Grid.Column="1" Margin="6,0,0,0" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" MinHeight="34"
+                                             VerticalScrollBarVisibility="Auto" AllowDrop="True"/>
+                                    <Button x:Name="ChatAttach" Grid.Column="2" Content="📎" Margin="6,0,0,0" VerticalAlignment="Bottom" ToolTip="Прикрепить файл"/>
+                                    <Button x:Name="ChatMic" Grid.Column="3" Content="🎤" Margin="6,0,0,0" VerticalAlignment="Bottom" ToolTip="Голосовой ввод (Win+H)"/>
+                                    <Button x:Name="ChatSend" Grid.Column="4" Content="Отправить" Margin="6,0,0,0" VerticalAlignment="Bottom" Style="{StaticResource AccentButton}"/>
+                                </Grid>
                                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                    <Button x:Name="ChatAttach" Content="📎" ToolTip="Прикрепить файл"/>
-                                    <Button x:Name="ChatMic" Content="🎤" Margin="6,0,0,0" ToolTip="Голосовой ввод (Win+H)"/>
-                                    <Button x:Name="ChatSend" Content="Отправить" Margin="6,0,0,0" Style="{StaticResource AccentButton}"/>
-                                    <Button x:Name="ChatBetter" Content="👍 Стало лучше" Margin="14,0,0,0"
+                                    <Button x:Name="ChatBetter" Content="👍 Стало лучше" Margin="0,0,6,0"
                                             Visibility="{Binding WasApplied, Converter={StaticResource BoolToVisibility}}"/>
-                                    <Button x:Name="ChatWorse" Content="👎 Стало хуже" Margin="6,0,0,0"
+                                    <Button x:Name="ChatWorse" Content="👎 Стало хуже" Margin="0,0,12,0"
                                             Visibility="{Binding WasApplied, Converter={StaticResource BoolToVisibility}}"/>
+                                    <TextBlock Text="Текст и вложения уходят в Anthropic API" FontSize="11" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextSecondary}"/>
                                 </StackPanel>
-                                <TextBlock Text="Текст и вложения уходят в Anthropic API" FontSize="11" Margin="0,6,0,0"
-                                           Foreground="{DynamicResource TextSecondary}"/>
                             </StackPanel>
                         </StackPanel>
+                        </Border>
+                    </Grid>
                     </Grid>
                 </Border>
             </Grid>

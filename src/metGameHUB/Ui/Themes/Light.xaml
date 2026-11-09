@@ -3,6 +3,7 @@
     <SolidColorBrush x:Key="WindowBackground" Color="#CCF2F2F7" />
     <SolidColorBrush x:Key="WindowBackgroundSolid" Color="#F2F2F7" />
     <SolidColorBrush x:Key="Surface" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="FloatingSurface" Color="#FFFFFF" />
     <SolidColorBrush x:Key="SurfaceHover" Color="#E5E5EA" />
     <SolidColorBrush x:Key="Border" Color="#1F000000" />
     <SolidColorBrush x:Key="Text" Color="#000000" />

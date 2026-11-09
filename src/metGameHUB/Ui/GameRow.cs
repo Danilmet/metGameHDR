@@ -199,7 +199,6 @@ public sealed class GameRow : INotifyPropertyChanged
     public IReadOnlyList<AdviceRowVm> AdviceRows => adviceRows;
     public bool HasRows => adviceRows.Count > 0;
     public string AdviceHeading => latest == null ? "Текущие настройки:" : Advisor.Edits(latest.Result).Count > 0 ? "Рекомендуемые настройки:" : "Выставить в меню игры:";
-    public string OptimizedText => latest is null ? "Настройки не подобраны" : $"Настройки подобраны {AdviceAt}";
     public string AdviceNotes => latest?.Result.Notes ?? "";
     public string AdviceAt => latest is null ? "" : latest.At.ToLocalTime().ToString("dd.MM HH:mm");
     public bool CanApply => canApply;
@@ -271,7 +270,7 @@ public sealed class GameRow : INotifyPropertyChanged
         chat = (o?.Chat ?? []).Select(t => new ChatTurnVm(t.Role == ChatRole.User, t.Text,
             t.Attachments is { Count: > 0 } a ? "📎 " + string.Join(", ", a) : "", t.At.ToLocalTime().ToString("dd.MM HH:mm"))).ToList();
         adviceRows = []; // rebuilt by RefreshCanApply/RefreshConfig: BuildRows touches the file system
-        foreach (var name in new[] { nameof(HasRows), nameof(SnapshotStale), nameof(Latest), nameof(HasAdvice), nameof(AdviceSummary), nameof(AdviceRows), nameof(AdviceHeading), nameof(OptimizedText), nameof(AdviceNotes), nameof(AdviceAt), nameof(CanApply), nameof(CanApplyNow), nameof(CanChat), nameof(Chat), nameof(TargetIndex), nameof(TargetText), nameof(HasOwnTarget) })
+        foreach (var name in new[] { nameof(HasRows), nameof(SnapshotStale), nameof(Latest), nameof(HasAdvice), nameof(AdviceSummary), nameof(AdviceRows), nameof(AdviceHeading),nameof(AdviceNotes), nameof(AdviceAt), nameof(CanApply), nameof(CanApplyNow), nameof(CanChat), nameof(Chat), nameof(TargetIndex), nameof(TargetText), nameof(HasOwnTarget) })
             Notify(name);
     }
 
