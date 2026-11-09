@@ -10,6 +10,10 @@ public sealed record LocateRequest(Game Game, IReadOnlyList<string> InstallRootE
 
 public sealed record AdviceRequest(Game Game, HardwareInfo Hardware, GoalStep Goal, string? ConfigPath, string? ConfigFormat, string? ConfigText, bool Truncated, List<CurrentSetting>? Current = null);
 
+public sealed record AdjustRequest(AdviceRequest Context, AdviceResult Advice, IReadOnlyList<ChatTurn> History, string Text, IReadOnlyList<ChatAttachment> Attachments);
+
+public sealed record AdjustResult(string Reply, string Summary, List<SettingAdvice> Settings, string? Notes);
+
 public sealed record ReadRequest(Game Game, string ConfigPath, string ConfigFormat, string ConfigText, bool Truncated);
 
 public sealed record ReadResult(List<CurrentSetting> Settings);
@@ -28,6 +32,7 @@ public sealed record ClaudeChoice(string? Model, ClaudeTask? Locate = null, Clau
 public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl = null, ClaudeChoice? choice = null)
 {
     public const string Model = "claude-opus-5-5";
+    public const int MaxHistoryTurns = 20;
     const string LocateEffort = "medium", AskEffort = "medium", ReadEffort = "low";
     const string DefaultBaseUrl = "https://api.anthropic.com";
 
@@ -55,6 +60,22 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
         {"type":"object","additionalProperties":false,"required":["summary","settings","notes"],"properties":{"summary":{"type":"string"},"settings":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["name","current","recommended","section","key","value","reason"],"properties":{"name":{"type":"string"},"current":{"type":["string","null"]},"recommended":{"type":"string"},"section":{"type":["string","null"]},"key":{"type":["string","null"]},"value":{"type":["string","null"]},"reason":{"type":"string"}}}},"notes":{"type":["string","null"]}}}
         """;
 
+    const string AdjustPrompt = """
+        Ты эксперт по оптимизации графических настроек ПК-игр. Тебе дают игру, железо, цель, файл настроек (если найден), текущие значения (current), прошлый совет (advice) и переписку с пользователем.
+        Правила:
+        1. Найди свежие материалы по оптимизации именно этой игры (статьи, тесты, форумы) и опирайся на них и на известное поведение движка.
+        2. goal.mode задаёт, чем жертвовать: max_quality — максимум картинки, кадры как получатся, но не ниже goal.fps; quality — стабильно держать goal.fps, весь остальной запас отдать картинке; balanced — держать goal.fps в типичных сценах, жертвовать самым дорогим при малой разнице в картинке; smooth — держать goal.fps с запасом и по минимальным кадрам (1% low), картинка во вторую очередь; max_fps — как можно больше кадров и минимальная задержка, картинка вторична (goal.fps = null). Для quality, balanced и smooth цель по кадрам — для типичных сцен, с запасом ~10%.
+        3. settings — один список строк по пунктам графического меню игры. name и value-поля пиши так, как они видны в меню игры (на языке игры, если неизвестен — по-английски). Разрешение и апскейлер указывай под монитор пользователя. Если прислан current — это уже разобранные пункты файла: бери из него name и current для этих пунктов.
+        4. Для каждого пункта: current — текущее значение, разобранное из присланного файла и переведённое в подпись меню (например ключ 3 → "High"); если файла нет или пункт в нём не хранится — null. recommended — рекомендуемая подпись меню.
+        5. Если пункт хранится в присланном файле, заполни section (секция INI или null), key (точное имя ключа из файла; для INI допустим документированный для движка ключ, которого в файле нет) и value — сырое значение для записи в файл в том виде, в каком оно там пишется (число, true/false, строка без лишних кавычек). Иначе section/key/value — null. Ключи не выдумывай.
+        6. Исправь совет по последней просьбе: меняй только то, о чём просят или что из этого прямо следует, остальные пункты верни без изменений.
+        7. Если прислан скриншот или файл — опирайся на него (меню игры, оверлей с FPS, лог).
+        8. reply — 1–3 предложения по-русски: что поменял и почему, или почему не стал менять.
+        9. summary, reason и notes — строго по-русски. summary — 2–3 предложения о том, что упирается в железо и чем пожертвовали. notes — предупреждения (например, что часть настроек надо выставить руками), иначе null.
+        Отвечай только одним JSON-объектом по схеме, без пояснений и без markdown-ограждений:
+        {"type":"object","additionalProperties":false,"required":["reply","summary","settings","notes"],"properties":{"reply":{"type":"string"},"summary":{"type":"string"},"settings":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["name","current","recommended","section","key","value","reason"],"properties":{"name":{"type":"string"},"current":{"type":["string","null"]},"recommended":{"type":"string"},"section":{"type":["string","null"]},"key":{"type":["string","null"]},"value":{"type":["string","null"]},"reason":{"type":"string"}}}},"notes":{"type":["string","null"]}}}
+        """;
+
     const string ReadPrompt = """
         Ты знаешь графические настройки ПК-игр. Тебе дают игру и её файл настроек с содержимым.
         Правила:
@@ -77,6 +98,9 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
 
     public async Task<AdviceResult> AskAsync(AdviceRequest request, CancellationToken ct) =>
         Parse<AdviceResult>(await Post(BuildAskBody(request, ModelFor(choice?.Ask), EffortFor(choice?.Ask, AskEffort)), ct));
+
+    public async Task<AdjustResult> AdjustAsync(AdjustRequest request, CancellationToken ct) =>
+        Parse<AdjustResult>(await Post(BuildAdjustBody(request, ModelFor(choice?.Ask), EffortFor(choice?.Ask, AskEffort)), ct));
 
     public async Task<ReadResult> ReadAsync(ReadRequest request, CancellationToken ct)
     {
@@ -115,30 +139,57 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
 
     static object GameInfo(Game g) => new { name = g.Name, source = g.Source, installDir = g.InstallDir, exe = g.MainExe };
 
-    internal static string BuildLocateBody(LocateRequest r, string model, string effort = LocateEffort) => Body(model, 1000, 2, effort, LocatePrompt, new
+    static object[] Single(object user) => [new { role = "user", content = JsonSerializer.Serialize(user, Json) }];
+
+    internal static string BuildLocateBody(LocateRequest r, string model, string effort = LocateEffort) => Body(model, 1000, 2, effort, LocatePrompt, Single(new
     {
         game = GameInfo(r.Game),
         installRootEntries = r.InstallRootEntries,
         candidates = r.CandidatePaths,
         unrealProject = r.UnrealProject,
-    });
+    }));
 
-    internal static string BuildAskBody(AdviceRequest r, string model, string effort = AskEffort) => Body(model, 8000, 3, effort, AskPrompt, new
+    static Dictionary<string, object?> AskContext(AdviceRequest r) => new()
     {
-        game = GameInfo(r.Game),
-        hardware = r.Hardware,
-        goal = new { mode = GoalTargets.Mode(r.Goal), fps = GoalTargets.For(r.Goal, r.Hardware.Hz).Fps },
-        config = r.ConfigPath is null ? null : new { path = r.ConfigPath, format = r.ConfigFormat, text = r.ConfigText, truncated = r.Truncated },
-        current = r.Current,
-    });
+        ["game"] = GameInfo(r.Game),
+        ["hardware"] = r.Hardware,
+        ["goal"] = new { mode = GoalTargets.Mode(r.Goal), fps = GoalTargets.For(r.Goal, r.Hardware.Hz).Fps },
+        ["config"] = r.ConfigPath is null ? null : new { path = r.ConfigPath, format = r.ConfigFormat, text = r.ConfigText, truncated = r.Truncated },
+        ["current"] = r.Current,
+    };
 
-    internal static string BuildReadBody(ReadRequest r, string model, string effort = ReadEffort) => Body(model, 4000, 0, effort, ReadPrompt, new
+    internal static string BuildAskBody(AdviceRequest r, string model, string effort = AskEffort) =>
+        Body(model, 8000, 3, effort, AskPrompt, Single(AskContext(r)));
+
+    internal static string BuildAdjustBody(AdjustRequest r, string model, string effort = AskEffort)
+    {
+        static object Text(string t) => new { type = "text", text = t };
+        var history = r.History.TakeLast(MaxHistoryTurns).ToList();
+        if (history.Count > 0 && history[0].Role == ChatRole.Assistant) history.RemoveAt(0);
+
+        var msgs = history.Select(t => new
+        {
+            role = t.Role == ChatRole.User ? "user" : "assistant",
+            content = new List<object> { Text(t.Text + (t.Attachments?.Count > 0 ? $"\n[вложения: {string.Join(", ", t.Attachments)}]" : "")) },
+        }).ToList();
+        var last = new List<object>();
+        if (!string.IsNullOrEmpty(r.Text)) last.Add(Text(r.Text));
+        last.AddRange(r.Attachments.Select(a => a.Block));
+        msgs.Add(new { role = "user", content = last });
+
+        var context = AskContext(r.Context);
+        context["advice"] = r.Advice;
+        msgs[0].content.Insert(0, Text(JsonSerializer.Serialize(context, Json)));
+        return Body(model, 8000, 2, effort, AdjustPrompt, msgs);
+    }
+
+    internal static string BuildReadBody(ReadRequest r, string model, string effort = ReadEffort) => Body(model, 4000, 0, effort, ReadPrompt, Single(new
     {
         game = GameInfo(r.Game),
         config = new { path = r.ConfigPath, format = r.ConfigFormat, text = r.ConfigText, truncated = r.Truncated },
-    });
+    }));
 
-    static string Body(string model, int maxTokens, int maxSearches, string effort, string system, object user)
+    static string Body(string model, int maxTokens, int maxSearches, string effort, string system, object messages)
     {
         var body = new Dictionary<string, object>
         {
@@ -149,7 +200,7 @@ public sealed class ClaudeClient(HttpClient http, string apiKey, string? baseUrl
         };
         if (maxSearches > 0) body["tools"] = new[] { new { type = "web_search_20260209", name = "web_search", max_uses = maxSearches } };
         body["fallbacks"] = "default";
-        body["messages"] = new[] { new { role = "user", content = JsonSerializer.Serialize(user, Json) } };
+        body["messages"] = messages;
         return JsonSerializer.Serialize(body, Json);
     }
 

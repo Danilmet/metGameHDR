@@ -344,4 +344,108 @@ public class ClaudeClientTests
             new ClaudeClient(new HttpClient(fake), "key").AskAsync(Request(), CancellationToken.None));
         Assert.Contains("перегружен", ex.Message);
     }
+
+    static AdjustRequest Adjust(IReadOnlyList<ChatTurn>? history = null, string text = "ещё выше", params ChatAttachment[] attachments) => new(
+        Request(), new AdviceResult("sum", [new SettingAdvice("Shadows", "High", "Low", "S", "k", "0", "r")], null),
+        history ?? [], text, attachments);
+
+    static ChatTurn Turn(ChatRole role, string text, params string[] files) =>
+        new(role, text, files.Length > 0 ? files.ToList() : null, DateTime.UtcNow);
+
+    static List<JsonElement> Messages(string body)
+    {
+        using var doc = JsonDocument.Parse(body);
+        return doc.RootElement.GetProperty("messages").EnumerateArray().Select(m => m.Clone()).ToList();
+    }
+
+    static string Block(JsonElement msg, int i) => msg.GetProperty("content")[i].GetProperty("text").GetString()!;
+
+    [Fact]
+    public void BuildAdjustBody_RolesAlternate_ContextFirst()
+    {
+        var history = new[] { Turn(ChatRole.User, "тени выше"), Turn(ChatRole.Assistant, "поднял тени") };
+        var msgs = Messages(ClaudeClient.BuildAdjustBody(Adjust(history), "m"));
+
+        Assert.Equal(["user", "assistant", "user"], msgs.Select(m => m.GetProperty("role").GetString()));
+        using var ctx = JsonDocument.Parse(Block(msgs[0], 0));
+        Assert.Equal("sum", ctx.RootElement.GetProperty("advice").GetProperty("summary").GetString());
+        Assert.Equal("balanced", ctx.RootElement.GetProperty("goal").GetProperty("mode").GetString());
+        Assert.Equal(@"C:\g\a.ini", ctx.RootElement.GetProperty("config").GetProperty("path").GetString());
+        Assert.Equal("тени выше", Block(msgs[0], 1));
+        Assert.Equal("ещё выше", Block(msgs[2], 0));
+
+        var first = Messages(ClaudeClient.BuildAdjustBody(Adjust(), "m")).Single();
+        Assert.Equal(2, first.GetProperty("content").GetArrayLength());
+        Assert.Equal("ещё выше", Block(first, 1));
+        using var ctx2 = JsonDocument.Parse(Block(first, 0));
+        Assert.Equal("sum", ctx2.RootElement.GetProperty("advice").GetProperty("summary").GetString());
+    }
+
+    [Fact]
+    public void BuildAdjustBody_HistoryTrimmedTo20_StartsWithUser()
+    {
+        var history = Enumerable.Range(0, 24)
+            .Select(i => Turn(i % 2 == 0 ? ChatRole.User : ChatRole.Assistant, "t" + i)).ToList();
+        var msgs = Messages(ClaudeClient.BuildAdjustBody(Adjust(history), "m"));
+
+        Assert.Equal(21, msgs.Count);
+        Assert.Equal("user", msgs[0].GetProperty("role").GetString());
+        Assert.Equal("t4", Block(msgs[0], 1));
+        Assert.Contains("\"game\"", Block(msgs[0], 0));
+    }
+
+    [Fact]
+    public void BuildAdjustBody_AttachmentBlocksInLastTurn()
+    {
+        var img = new ChatAttachment("a.png", new { type = "image", source = new { type = "base64", media_type = "image/png", data = "x" } });
+        var txt = new ChatAttachment("a.log", new { type = "text", text = "Файл a.log:\nz" });
+        var history = new[] { Turn(ChatRole.User, "см. меню", "menu.png"), Turn(ChatRole.Assistant, "ок") };
+        var msgs = Messages(ClaudeClient.BuildAdjustBody(Adjust(history, "вот", img, txt), "m"));
+
+        var last = msgs[^1].GetProperty("content");
+        Assert.Equal(["text", "image", "text"], last.EnumerateArray().Select(b => b.GetProperty("type").GetString()));
+        Assert.Equal("вот", last[0].GetProperty("text").GetString());
+        Assert.Equal("см. меню\n[вложения: menu.png]", Block(msgs[0], 1));
+    }
+
+    [Fact]
+    public void BuildAdjustBody_EmptyText_OnlyAttachmentBlocks()
+    {
+        var img = new ChatAttachment("a.png", new { type = "image", source = new { type = "base64", media_type = "image/png", data = "x" } });
+        var history = new[] { Turn(ChatRole.User, "q"), Turn(ChatRole.Assistant, "a") };
+        var last = Messages(ClaudeClient.BuildAdjustBody(Adjust(history, "", img), "m"))[^1].GetProperty("content");
+
+        Assert.Equal(1, last.GetArrayLength());
+        Assert.Equal("image", last[0].GetProperty("type").GetString());
+    }
+
+    const string AdjustJson = """{"reply":"Поднял тени","summary":"s","settings":[{"name":"Shadows","current":"High","recommended":"Low","section":"S","key":"k","value":"0","reason":"r"}],"notes":null}""";
+
+    [Fact]
+    public async Task BuildAdjustBody_ModelEffortSearch()
+    {
+        var fake = new Fake(HttpStatusCode.OK, Response(text: AdjustJson));
+        var choice = new ClaudeChoice(null, Ask: new() { Model = "claude-sonnet-5-5", Effort = "high" });
+        await new ClaudeClient(new HttpClient(fake), "key", null, choice).AdjustAsync(Adjust(), CancellationToken.None);
+
+        Assert.Equal(("claude-sonnet-5-5", "high"), ModelAndEffort(fake.Body!));
+        using var doc = JsonDocument.Parse(fake.Body!);
+        Assert.Equal(2, doc.RootElement.GetProperty("tools")[0].GetProperty("max_uses").GetInt32());
+        Assert.Equal(8000, doc.RootElement.GetProperty("max_tokens").GetInt32());
+        Assert.Contains("reply", doc.RootElement.GetProperty("system").GetString());
+
+        var plain = new Fake(HttpStatusCode.OK, Response(text: AdjustJson));
+        await new ClaudeClient(new HttpClient(plain), "key").AdjustAsync(Adjust(), CancellationToken.None);
+        Assert.Equal(("claude-opus-5-5", "medium"), ModelAndEffort(plain.Body!));
+    }
+
+    [Fact]
+    public async Task AdjustAsync_ParsesReplyAndSettings()
+    {
+        var fake = new Fake(HttpStatusCode.OK, Response(text: AdjustJson));
+        var result = await new ClaudeClient(new HttpClient(fake), "key").AdjustAsync(Adjust(), CancellationToken.None);
+
+        Assert.Equal("Поднял тени", result.Reply);
+        Assert.Equal("Shadows", result.Settings.Single().Name);
+    }
 }
